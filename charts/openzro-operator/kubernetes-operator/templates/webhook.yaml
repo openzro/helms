@@ -1,0 +1,135 @@
+{{ $tls := fromYaml ( include "openzro-operator.webhookCerts" . ) }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "openzro-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "openzro-operator.fullname" . }}-mpod-webhook
+  labels:
+    {{- include "openzro-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager }}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "openzro-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /mutate--v1-pod
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  name: mpod-v1.openzro.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  objectSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: NotIn
+      values:
+      - {{ include "openzro-operator.name" . }}
+    {{- if .Values.webhook.objectSelector.matchExpressions }}
+    {{- toYaml .Values.webhook.objectSelector.matchExpressions | nindent 4 }}
+    {{- end }}
+    {{- if .Values.webhook.objectSelector.matchLabels }}
+    matchLabels:
+    {{- toYaml .Values.webhook.objectSelector.matchLabels | nindent 6 }}
+    {{- end }}
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
+  sideEffects: None
+{{- if and $.Values.ingress.enabled .Values.openzroAPI.keyFromSecret }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "openzro-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "openzro-operator.fullname" . }}-vnbgroup-webhook
+  labels:
+    {{- include "openzro-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager }}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "openzro-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /validate-openzro-io-v1-ozgroup
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  name: vnbgroup-v1.openzro.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  rules:
+  - apiGroups:
+    - openzro.io
+    apiVersions:
+    - v1
+    operations:
+    - DELETE
+    resources:
+    - "ozgroups"
+  sideEffects: None
+{{- end }}
+---
+{{- if not $.Values.webhook.enableCertManager }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ template "openzro-operator.webhookCertSecret" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "openzro-operator.labels" . | indent 4 }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $tls.caCert }}
+  tls.crt: {{ $tls.clientCert }}
+  tls.key: {{ $tls.clientKey }}
+{{- else }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ template "openzro-operator.fullname" . }}-serving-cert
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "openzro-operator.labels" . | indent 4 }}
+spec:
+  dnsNames:
+  - {{ template "openzro-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
+  - {{ template "openzro-operator.webhookService" . }}.{{ .Release.Namespace }}.{{ .Values.cluster.dns }}
+  issuerRef:
+    kind: Issuer
+    name: {{ template "openzro-operator.fullname" . }}-selfsigned-issuer
+  secretName: {{ template "openzro-operator.webhookCertSecret" . }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ template "openzro-operator.fullname" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "openzro-operator.labels" . | indent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
