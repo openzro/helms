@@ -1,0 +1,26 @@
+{{- if and .Values.management.enabled .Values.management.useBackwardsGrpcService -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openzro.fullname" . }}-management-grpc
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+  {{- with .Values.management.serviceGrpc.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.management.serviceGrpc.type }}
+  ports:
+    - port: {{ .Values.management.serviceGrpc.port }}
+      targetPort: {{ .Values.management.serviceGrpc.name }}
+      protocol: TCP
+      name: {{ .Values.management.serviceGrpc.name }}
+  selector:
+    {{- include "openzro.management.selectorLabels" . | nindent 4 }}
+  {{- with .Values.management.serviceGrpc.externalIPs }}
+  externalIPs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
