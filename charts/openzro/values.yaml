@@ -1089,6 +1089,21 @@ dex:
       secret:
         secretName: openzro-dex-grpc
         optional: true
+    # PVC for Dex's sqlite store at /var/lib/dex/dex.db. The PVC is
+    # only created when `dex.persistence.enabled: true` (the default);
+    # operators who switch to postgres storage should set
+    # `dex.persistence.enabled: false` AND remove this entry from
+    # `dex.volumes` / `dex.volumeMounts` to avoid mounting an unused
+    # volume.
+    #
+    # claimName is hardcoded (no release prefix) — the upstream
+    # dexidp/dex subchart doesn't tpl nested values in its volume
+    # block, so a `{{ include }}` here would reach the kube-apiserver
+    # as a literal string. See templates/dex-pvc.yaml for the
+    # matching PVC name.
+    - name: dex-data
+      persistentVolumeClaim:
+        claimName: openzro-dex-data
   volumeMounts:
     - name: openzro-theme
       mountPath: /srv/dex/web/themes/openzro
@@ -1096,13 +1111,18 @@ dex:
     - name: dex-grpc-certs
       mountPath: /etc/dex/grpc-certs
       readOnly: true
+    - name: dex-data
+      mountPath: /var/lib/dex
 
   # Persistent volume for sqlite storage. For production HA, switch
-  # storage.type to "postgres" and disable persistence.
+  # storage.type to "postgres" and disable persistence (also remove
+  # the dex-data entry from `dex.volumes` / `dex.volumeMounts` above).
   persistence:
     enabled: true
     size: 1Gi
     accessModes: [ReadWriteOnce]
+    # storageClass: ""  # uncomment + set to pin a class; default uses
+                        # the cluster's default StorageClass.
 
   # Feature gate: allow runtime CRUD on connectors via Dex's gRPC API.
   # Required for the dashboard's Authentication Providers tab to work.

@@ -1,0 +1,35 @@
+{{- /*
+PVC for the Dex sqlite store at /var/lib/dex/dex.db. Without this the
+in-cluster Dex restarts (rollouts, evictions, OOM kills) wipe its
+state — every connector definition the operator configured via the
+dashboard's Authentication Providers tab goes with it. The
+embedded sqlite path is fine for HA-of-one deployments; HA proper
+should swap dex.config.storage.type to "postgres" and set
+dex.persistence.enabled=false to skip this PVC.
+*/}}
+{{- if and .Values.dex.enabled .Values.dex.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  # Fixed name (no release prefix) because the upstream dexidp/dex
+  # subchart's deployment template renders volumes via plain toYaml,
+  # never tpl-ing nested values. A go-template include in the
+  # claimName would arrive at the kube-apiserver as a literal string.
+  # Hardcoding both ends keeps the PVC and claimName linked at the
+  # cost of one-release-per-namespace; multi-release operators need
+  # to override dex.volumes anyway.
+  name: openzro-dex-data
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dex
+spec:
+  accessModes:
+    {{- toYaml .Values.dex.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.dex.persistence.size }}
+  {{- with .Values.dex.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
