@@ -30,7 +30,31 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Run chart-releaser
+        # Publishes to the gh-pages branch of this repo, which is
+        # served at https://openzro.github.io/helms — operators add
+        # with: `helm repo add openzro https://openzro.github.io/helms`
         uses: helm/chart-releaser-action@v1.7.0
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           CR_RELEASE_NAME_TEMPLATE: "helm-{{ .Name }}-v{{ .Version }}"
+
+      # Mirror to ghcr.io as OCI artifacts for the modern install
+      # path: `helm install foo oci://ghcr.io/openzro/charts/openzro
+      # --version 2.0.0-alpha.1`. Both paths coexist; OCI uses the
+      # GITHUB_TOKEN that already has packages:write on the org.
+      - name: Login to ghcr.io for OCI push
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Package and push charts as OCI artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p .cr-release-packages
+          for c in charts/openzro charts/openzro-operator charts/openzro-operator-config; do
+            [ -d "$c" ] || continue
+            helm dependency update "$c"
+            helm package "$c" --destination .cr-release-packages/
+          done
+          for tgz in .cr-release-packages/*.tgz; do
+            echo "Pushing $tgz to oci://ghcr.io/openzro/charts"
+            helm push "$tgz" oci://ghcr.io/openzro/charts
+          done
