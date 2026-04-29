@@ -47,6 +47,11 @@ jobs:
         # served at https://openzro.github.io/helms — operators add
         # with: `helm repo add openzro https://openzro.github.io/helms`
         uses: helm/chart-releaser-action@v1.7.0
+        with:
+          # Idempotent re-runs: when a release for this chart+version
+          # already exists, skip the upload instead of failing 422.
+          # Lets us retry CI without nuking the GitHub Release first.
+          skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           CR_RELEASE_NAME_TEMPLATE: "helm-{{ .Name }}-v{{ .Version }}"
