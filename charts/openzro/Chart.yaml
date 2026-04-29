@@ -1,8 +1,38 @@
 ---
 apiVersion: v2
 name: openzro
-description: openZro VPN management platform
+description: openZro — open-source mesh networking with WireGuard. Self-hosted control plane (management, signal, relay, dashboard) plus a Dex-based federated IdP (per ADR-0006).
 type: application
-version: 1.9.0
-appVersion: "0.46.0"
-icon: https://images.crunchbase.com/image/upload/c_pad,h_256,w_256,f_auto,q_auto:eco,dpr_1/kuu5tm1wt09ztp6ctlag
+# Chart version is the chart's own SemVer — bumped on every change to
+# the chart even when the appVersion stays the same. Major reset to
+# 2.0.0 marks the openZro fork point + the Dex subchart introduction
+# (the upstream chart's 1.x line shipped without a bundled IdP).
+version: 2.0.0-alpha.1
+# appVersion follows the openzro/openzro tag — stays at the latest
+# tagged release (v0.53.1-alpha.1 is the first openZro release post-fork
+# from upstream NetBird's BSD-3 v0.53.0).
+appVersion: "0.53.1-alpha.1"
+icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
+keywords:
+  - vpn
+  - wireguard
+  - mesh
+  - zero-trust
+  - networking
+home: https://openzro.io/
+sources:
+  - https://github.com/openzro/openzro
+  - https://github.com/openzro/helms
+maintainers:
+  - name: openZro maintainers
+    email: dev@openzro.io
+
+# Subchart deps. Dex is bundled by default (per ADR-0006); operators
+# who run an external Dex set `dex.enabled: false` and the dependency
+# is skipped. Run `helm dependency update charts/openzro` after
+# changing this list.
+dependencies:
+  - name: dex
+    version: 0.23.0
+    repository: https://charts.dexidp.io
+    condition: dex.enabled
