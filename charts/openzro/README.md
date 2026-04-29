@@ -1,16 +1,34 @@
 # openzro
 
-Forked from [TOT MICRO's Helm Repository](https://github.com/totmicro/helms).
-![Version: 1.8.0](https://img.shields.io/badge/Version-1.8.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.46.0](https://img.shields.io/badge/AppVersion-0.46.0-informational?style=flat-square)
+![Version: 2.0.0-alpha.3](https://img.shields.io/badge/Version-2.0.0--alpha.3-informational?style=flat-square)
+![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
+![AppVersion: 0.53.1-alpha.1](https://img.shields.io/badge/AppVersion-0.53.1--alpha.1-7c3aed?style=flat-square)
 
 ## openZro Helm Chart
 
-This Helm chart installs and configures the [openZro](https://github.com/openzro/openzro) services within a Kubernetes cluster. The chart includes the management, signal, and relay components of openZro, providing secure peer-to-peer network connections across various environments.
+This Helm chart installs the openZro self-hosted control plane on
+Kubernetes — management + signal + relay + dashboard + an embedded
+Dex IdP (per [ADR-0006](https://github.com/openzro/openzro/blob/main/docs/adr/0006-embed-dex.md)).
+Operators get federated SSO via Dex's runtime connector API
+(Google / GitHub / Microsoft Entra / Keycloak / Okta / generic
+OIDC), HA-capable mesh networking via WireGuard®, and an
+opinionated dark-themed dashboard.
+
+This chart is the openZro fork of upstream `netbirdio/helms`,
+re-cut at the v0.52.2 BSD-3 fork point. See
+[ADR-0008](https://github.com/openzro/openzro/blob/main/docs/adr/0008-kubernetes-helm-operator.md)
+for the chart-side architectural decisions.
 
 ## Prerequisites
 
-- Helm 3.x
-- Kubernetes 1.19+
+- Helm 3.12+
+- Kubernetes 1.27+ (Gateway API CRDs require 1.31+ if
+  `gatewayApi.enabled: true`)
+- A DNS record pointing at your cluster's ingress / Gateway
+- (Optional) cert-manager for TLS
+- (Optional) `imagePullSecrets` while openZro container packages on
+  ghcr.io remain private — see the
+  [k8s deployment guide](https://github.com/openzro/openzro/blob/main/docs/operator/k8s-deployment-guide.md#pull-secret-note-private-ghcr-packages)
 
 ## Installation
 
