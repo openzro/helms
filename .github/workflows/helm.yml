@@ -8,6 +8,9 @@ on:
       - 'charts/openzro/Chart.yaml'
     branches:
       - main
+  workflow_dispatch:
+    # Manual re-run path — useful when CI infra (deps, registry
+    # auth) changes without bumping a chart version.
 
 jobs:
   chart-release:
