@@ -1,0 +1,196 @@
+{{- /*
+Gateway API resources (gateway.networking.k8s.io/v1) — opt-in via
+`gatewayApi.enabled`. Mirrors what the per-component Ingress
+templates expose, but in the cleaner Gateway/Route split:
+
+  - Optional Gateway resource (when createGateway: true) with HTTPS
+    listener + cert ref. Hostname-bound.
+  - HTTPRoute  for dashboard / management REST / relay (HTTP/WS).
+  - GRPCRoute  for management-grpc / signal (gRPC native).
+
+Routes attach to either:
+  (a) the chart-emitted Gateway (createGateway: true), or
+  (b) an externally-managed Gateway via `parentRefs`.
+
+All resources are gated on `.Values.gatewayApi.enabled` AND the
+component's own `.enabled` AND the per-component
+`gatewayApi.routes.*.enabled` flag, so operators can mix Ingress
+and Gateway API path-by-path during migration.
+*/ -}}
+{{- if .Values.gatewayApi.enabled -}}
+{{- $gw := .Values.gatewayApi -}}
+{{- $fullName := include "openzro.fullname" . -}}
+{{- $namespace := include "openzro.namespace" . -}}
+{{- $gatewayName := printf "%s-openzro" $fullName -}}
+
+{{- /* parentRefs that downstream Routes use. Either point at our
+       chart-emitted Gateway, or at the operator-supplied refs. */ -}}
+{{- $parents := list -}}
+{{- if $gw.createGateway -}}
+  {{- $parents = list (dict "name" $gatewayName "sectionName" "https") -}}
+{{- else -}}
+  {{- $parents = $gw.parentRefs -}}
+{{- end -}}
+
+{{- if $gw.createGateway }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $gatewayName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ required "gatewayApi.gatewayClassName is required when gatewayApi.enabled and gatewayApi.createGateway are true" $gw.gatewayClassName }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ $gw.gateway.httpPort | default 80 }}
+      hostname: {{ $gw.gateway.hostname | quote }}
+      allowedRoutes:
+        {{- toYaml $gw.gateway.allowedRoutes | nindent 8 }}
+    - name: https
+      protocol: HTTPS
+      port: {{ $gw.gateway.httpsPort | default 443 }}
+      hostname: {{ $gw.gateway.hostname | quote }}
+      tls:
+        mode: {{ $gw.gateway.tls.mode | default "Terminate" }}
+        certificateRefs:
+          {{- toYaml $gw.gateway.tls.certificateRefs | nindent 10 }}
+      allowedRoutes:
+        {{- toYaml $gw.gateway.allowedRoutes | nindent 8 }}
+{{- end }}
+
+{{- if and .Values.dashboard.enabled $gw.routes.dashboard.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}-dashboard
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $gw.routes.dashboard.pathType | default "PathPrefix" }}
+            value: {{ $gw.routes.dashboard.path | default "/" | quote }}
+      backendRefs:
+        - name: {{ $fullName }}-dashboard
+          port: {{ .Values.dashboard.service.port }}
+{{- end }}
+
+{{- if and .Values.management.enabled $gw.routes.management.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}-management
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $gw.routes.management.pathType | default "PathPrefix" }}
+            value: {{ $gw.routes.management.path | default "/api" | quote }}
+      backendRefs:
+        - name: {{ $fullName }}-management
+          port: {{ .Values.management.service.port }}
+{{- end }}
+
+{{- if and .Values.management.enabled $gw.routes.managementGrpc.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ $fullName }}-management-grpc
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - {{- if or $gw.routes.managementGrpc.method $gw.routes.managementGrpc.service }}
+      matches:
+        - method:
+            {{- with $gw.routes.managementGrpc.service }}
+            service: {{ . | quote }}
+            {{- end }}
+            {{- with $gw.routes.managementGrpc.method }}
+            method: {{ . | quote }}
+            {{- end }}
+      {{- end }}
+      backendRefs:
+        - name: {{ $fullName }}-management-grpc
+          port: {{ .Values.management.serviceGrpc.port | default .Values.management.service.port }}
+{{- end }}
+
+{{- if and .Values.signal.enabled $gw.routes.signal.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ $fullName }}-signal
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.signal.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - {{- if or $gw.routes.signal.method $gw.routes.signal.service }}
+      matches:
+        - method:
+            {{- with $gw.routes.signal.service }}
+            service: {{ . | quote }}
+            {{- end }}
+            {{- with $gw.routes.signal.method }}
+            method: {{ . | quote }}
+            {{- end }}
+      {{- end }}
+      backendRefs:
+        - name: {{ $fullName }}-signal
+          port: {{ .Values.signal.service.port }}
+{{- end }}
+
+{{- if and .Values.relay.enabled $gw.routes.relay.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}-relay
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.relay.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $gw.routes.relay.pathType | default "PathPrefix" }}
+            value: {{ $gw.routes.relay.path | default "/" | quote }}
+      backendRefs:
+        - name: {{ $fullName }}-relay
+          port: {{ .Values.relay.service.port }}
+{{- end }}
+{{- end }}

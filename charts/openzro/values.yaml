@@ -60,7 +60,7 @@ management:
   image:
     ## @param management.image.repository Docker image repository for the management component.
     ##
-    repository: openzro/management
+    repository: ghcr.io/openzro/management
 
     ## @param management.image.pullPolicy Docker image pull policy.
     ##
@@ -321,7 +321,7 @@ signal:
   image:
     ## @param signal.image.repository Docker image repository for the signal component.
     ##
-    repository: openzro/signal
+    repository: ghcr.io/openzro/signal
 
     ## @param signal.image.pullPolicy Docker image pull policy for the signal component.
     ##
@@ -515,7 +515,7 @@ relay:
   image:
     ## @param relay.image.repository Docker image repository for the relay component.
     ##
-    repository: openzro/relay
+    repository: ghcr.io/openzro/relay
 
     ## @param relay.image.pullPolicy Docker image pull policy for the relay component.
     ##
@@ -691,7 +691,7 @@ dashboard:
 
   image:
     ## @param image.repository image repository
-    repository: openzro/dashboard
+    repository: ghcr.io/openzro/dashboard
 
     ## @param image.pullPolicy image pull policy
     pullPolicy: IfNotPresent
@@ -903,3 +903,272 @@ metrics:
     ##   prometheus: my-prometheus
     ##
     selector: {}
+
+## @section openZro Federated IdP (Dex)
+##
+## openZro embeds Dex as its OIDC issuer (per ADR-0006 in the
+## openzro/openzro repo). The dashboard's @axa-fr/react-oidc points at
+## Dex; Dex federates the operator's upstream IdP (Google / GitHub /
+## Microsoft Entra / Keycloak / Okta / generic OIDC) and is also the
+## bootstrap login source via `staticPasswords` in dev.
+##
+## This block configures the upstream `dex/dex` chart we pull in as a
+## subchart dependency (see Chart.yaml). Set `dex.enabled: false` to
+## disable the bundled Dex and point management at an external Dex
+## instance (in that case the operator must wire OPENZRO_DEX_GRPC_*
+## env vars on the management deployment manually).
+##
+## Reference: https://github.com/dexidp/helm-charts/tree/master/charts/dex
+##
+## @param dex.enabled Whether to deploy a bundled Dex IdP alongside management.
+##
+dex:
+  enabled: true
+
+  # Image is pinned to a known-good Dex release. Bump in a
+  # dependency-update PR (see helm-charts/.github/dependabot.yml).
+  image:
+    repository: ghcr.io/dexidp/dex
+    tag: v2.45.0-distroless
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  # Dex itself listens on 5556 (HTTP/OIDC) and 5557 (gRPC management
+  # API). The management Deployment talks to Dex over the gRPC API
+  # via mTLS (certs provisioned via the openzro-operator-config
+  # chart, or hand-rolled via cert-manager). The HTTP API is exposed
+  # at /dex behind the dashboard ingress.
+  ports:
+    http:
+      containerPort: 5556
+    grpc:
+      containerPort: 5557
+
+  # Dex configuration — the openZro core (see ADR-0006). The actual
+  # connectors block is operator-managed at runtime via Dex's gRPC
+  # API (the dashboard's Settings → Authentication Providers tab
+  # proxies into Dex). The static config below seeds:
+  #   - issuer URL (must match the dashboard's authAuthority)
+  #   - storage backend (sqlite by default; bump to postgres for HA)
+  #   - the openzro-dashboard SPA client (PKCE, public)
+  #   - one bootstrap admin via staticPasswords
+  #
+  # Override `config.issuer` to your real domain. Override the static
+  # password before exposing this beyond a private network.
+  config:
+    issuer: https://openzro.example.com/dex
+
+    storage:
+      type: sqlite3
+      config:
+        file: /var/lib/dex/dex.db
+
+    web:
+      http: 0.0.0.0:5556
+      allowedOrigins:
+        - https://openzro.example.com
+
+    grpc:
+      addr: 0.0.0.0:5557
+      # mTLS material is mounted from a Secret named `openzro-dex-grpc`
+      # by the openZro chart's templates/dex-grpc-secret.yaml. To
+      # disable mTLS for development clusters, set
+      # `dex.config.grpc.tlsCert/tlsKey/tlsClientCA: ""` in your values
+      # override AND run management with OPENZRO_DEX_GRPC_INSECURE=true.
+      tlsCert: /etc/dex/grpc-certs/server.crt
+      tlsKey: /etc/dex/grpc-certs/server.key
+      tlsClientCA: /etc/dex/grpc-certs/ca.crt
+
+    frontend:
+      dir: /srv/dex/web
+      theme: openzro
+      issuer: openZro
+
+    oauth2:
+      responseTypes: [code]
+      skipApprovalScreen: true
+
+    enablePasswordDB: true
+    staticPasswords:
+      # Bootstrap admin — REPLACE THIS HASH before deploying past dev.
+      # Generate with: htpasswd -bnBC 10 "" yourpassword | tr -d ':\n' | sed 's/$2y/$2a/'
+      - email: admin@openzro.example.com
+        hash: "$2a$10$FnWvg5MH2t6QLmRkxC/WAervu3W3rrK0PJce1eKIYgQMp/S8oVuMy"  # "openzro"
+        username: admin
+        userID: openzro-bootstrap-admin
+
+    staticClients:
+      # Dashboard SPA — public client (no secret), PKCE.
+      - id: openzro-dashboard
+        name: openZro Dashboard
+        public: true
+        redirectURIs:
+          - https://openzro.example.com/auth
+          - https://openzro.example.com/silent-auth
+          - https://openzro.example.com/
+
+    # Connectors block intentionally left empty here — the dashboard's
+    # Settings → Authentication Providers tab manages connectors at
+    # runtime via Dex's gRPC API. See ADR-0006 §"Operator UX".
+    connectors: []
+
+    logger:
+      level: info
+      format: text
+
+  # The brand theme assets are NOT shipped by the upstream dexidp/dex
+  # chart — operators bring their own. The openZro chart writes them
+  # via templates/dex-theme-cm.yaml (mirror of deploy/dev-idp/web/themes/openzro
+  # from the openzro/openzro repo).
+  # Both volumes are optional so a fresh `helm install` succeeds
+  # without prerequisite ConfigMaps / Secrets:
+  #   - dex-theme:  if absent, Dex falls back to its bundled stock
+  #     theme (still functional, just unbranded). Operators ship
+  #     the openZro brand theme by creating a ConfigMap named
+  #     `<release>-dex-theme` with the contents of
+  #     `deploy/dev-idp/web/themes/openzro/` from openzro/openzro.
+  #   - dex-grpc-certs: if absent, the management binary must be
+  #     started with OPENZRO_DEX_GRPC_INSECURE=true (loopback dev
+  #     mode). Production should provision the secret via
+  #     cert-manager (see openzro-operator-config chart).
+  volumes:
+    - name: openzro-theme
+      configMap:
+        name: '{{ include "openzro.fullname" . }}-dex-theme'
+        optional: true
+    - name: dex-grpc-certs
+      secret:
+        secretName: openzro-dex-grpc
+        optional: true
+  volumeMounts:
+    - name: openzro-theme
+      mountPath: /srv/dex/web/themes/openzro
+      readOnly: true
+    - name: dex-grpc-certs
+      mountPath: /etc/dex/grpc-certs
+      readOnly: true
+
+  # Persistent volume for sqlite storage. For production HA, switch
+  # storage.type to "postgres" and disable persistence.
+  persistence:
+    enabled: true
+    size: 1Gi
+    accessModes: [ReadWriteOnce]
+
+  # Feature gate: allow runtime CRUD on connectors via Dex's gRPC API.
+  # Required for the dashboard's Authentication Providers tab to work.
+  # `env` is a map per the upstream dexidp/dex chart's contract — for
+  # full EnvVar entries (valueFrom, etc.) use `envVars: []` instead.
+  env:
+    DEX_API_CONNECTORS_CRUD: "true"
+
+## @section Gateway API (modern alternative to Ingress)
+##
+## Gateway API (gateway.networking.k8s.io v1) is the next-gen
+## ingress standard — GA since Kubernetes 1.31. It cleanly separates
+## the Gateway (the L4/L7 proxy) from the Routes (per-service traffic
+## binding) and natively models gRPC via GRPCRoute.
+##
+## Enabling this block emits HTTPRoute / GRPCRoute resources alongside
+## (or instead of) the v1 Ingress resources controlled by the
+## per-component `<component>.ingress` blocks. Operators running
+## Envoy Gateway, Istio (ambient mesh), Cilium Gateway, Traefik
+## Proxy Gateway, or any other conformant controller can use this
+## path. Both paths coexist — set `<component>.ingress.enabled: false`
+## per component as you migrate.
+##
+## Prerequisites:
+##   1. Gateway API CRDs installed in the cluster:
+##        kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/standard-install.yaml
+##   2. A GatewayClass available (envoy / istio / cilium / traefik / …) —
+##      configured via `gatewayApi.gatewayClassName`.
+##
+gatewayApi:
+  ## @param gatewayApi.enabled Emit Gateway API HTTPRoute / GRPCRoute resources.
+  ##
+  enabled: false
+
+  ## @param gatewayApi.gatewayClassName GatewayClass to bind the chart's Gateway to. Required when `createGateway: true`. Common values: envoy, istio, cilium, traefik.
+  ##
+  gatewayClassName: ""
+
+  ## @param gatewayApi.createGateway When true, the chart emits a shared Gateway named `<release>-openzro` with HTTP+HTTPS listeners. When false, only the Routes are emitted — operators reference an externally-managed Gateway via `parentRefs` below.
+  ##
+  createGateway: true
+
+  ## Shared Gateway settings (only used when createGateway: true).
+  gateway:
+    ## @param gatewayApi.gateway.hostname Hostname listener pattern. All Routes match this host.
+    ##
+    hostname: openzro.example.com
+
+    ## @param gatewayApi.gateway.httpsPort Port for the HTTPS listener.
+    ##
+    httpsPort: 443
+
+    ## @param gatewayApi.gateway.httpPort Port for the optional HTTP listener (used for ACME challenges, redirects to HTTPS in production).
+    ##
+    httpPort: 80
+
+    ## TLS termination at the Gateway. The certificateRef points at
+    ## an existing Secret (typically managed by cert-manager).
+    tls:
+      ## @param gatewayApi.gateway.tls.mode TLS mode: Terminate (default) or Passthrough.
+      ##
+      mode: Terminate
+      ## @param gatewayApi.gateway.tls.certificateRefs List of certificate Secret refs.
+      ##
+      certificateRefs:
+        - name: openzro-tls
+          # kind: Secret  (default — uncomment for clarity if mixing with non-Secret refs)
+          # group: ""     (default — empty for core API group)
+
+    ## @param gatewayApi.gateway.allowedRoutes Cross-namespace route attachment policy. "Same" (default) restricts to the Gateway's namespace; set to "All" or use a selector for shared Gateways.
+    ##
+    allowedRoutes:
+      namespaces:
+        from: Same
+
+  ## When createGateway: false, parentRefs identify the externally-
+  ## managed Gateway that this chart's Routes should bind to.
+  ## Ignored when createGateway is true.
+  parentRefs: []
+    # - name: my-shared-gateway
+    #   namespace: gateway-system
+    #   sectionName: https           # listener name on the existing Gateway
+
+  ## Per-component route configuration. Each block can override the
+  ## default path matchers; leave as-is for typical deployments.
+  ##
+  ## Path semantics:
+  ##   - Dashboard catches everything not matched by a more-specific
+  ##     route, hence its broad `PathPrefix: /` default. Order routes
+  ##     so the management/api Routes win on `/api*`, etc.
+  ##
+  routes:
+    dashboard:
+      enabled: true
+      path: /
+      pathType: PathPrefix
+    management:
+      enabled: true
+      path: /api
+      pathType: PathPrefix
+      # The well-known OIDC discovery endpoints + Dex /auth landing
+      # are also fronted by the management/dashboard host. The chart
+      # adds them as additional matches when dex.enabled is true.
+    managementGrpc:
+      enabled: true
+      # gRPC routes match by Service+Method or Service prefix.
+      # Empty matches → match-all gRPC traffic to the host.
+      method: ""
+      service: ""
+    signal:
+      enabled: true
+      method: ""
+      service: ""
+    relay:
+      enabled: true
+      path: /
+      pathType: PathPrefix
