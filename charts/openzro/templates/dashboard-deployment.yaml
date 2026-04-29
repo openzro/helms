@@ -39,7 +39,7 @@ spec:
           {{- end }}
           securityContext:
             {{- toYaml .Values.dashboard.securityContext | nindent 12 }}
-          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag  }}"
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
           {{- if or (.Values.dashboard.env) (.Values.dashboard.envRaw) (.Values.dashboard.envFromSecret) }}
           env:
