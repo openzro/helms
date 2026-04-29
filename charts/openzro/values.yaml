@@ -31,7 +31,53 @@ management:
       - --single-account-mode-domain=openzro.selfhosted
       - --dns-domain=openzro.selfhosted
 
-  configmap: |- # Placeholder for ConfigMap data
+  ## @param management.configmap Inline JSON management.json.
+  ##
+  ## REQUIRED OVERRIDES per deployment:
+  ##   - DataStoreEncryptionKey  — generate with:
+  ##       head -c 32 /dev/urandom | base64
+  ##   - HttpConfig.AuthIssuer / OIDCConfigEndpoint — point at your
+  ##     dashboard hostname's Dex path (https://<domain>/dex)
+  ##
+  ## The defaults below use the in-cluster service names emitted by
+  ## this chart and are wired to single-account mode. Override any
+  ## field via your values.yaml. See
+  ## docs/operator/k8s-deployment-guide.md for the per-field
+  ## reference.
+  configmap: |
+    {
+        "Stuns": [
+            {
+                "Proto": "udp",
+                "URI": "stun:openzro-relay:33080"
+            }
+        ],
+        "Signal": {
+            "Proto": "http",
+            "URI": "openzro-signal:80"
+        },
+        "ReverseProxy": {
+            "TrustedHTTPProxies": [],
+            "TrustedHTTPProxiesCount": 0,
+            "TrustedPeers": ["0.0.0.0/0"]
+        },
+        "DisableDefaultPolicy": false,
+        "DataStoreEncryptionKey": "REPLACE_WITH_BASE64_32_BYTES",
+        "StoreConfig": {
+            "Engine": "sqlite"
+        },
+        "HttpConfig": {
+            "Address": "0.0.0.0:33071",
+            "AuthIssuer": "https://openzro.example.com/dex",
+            "AuthAudience": "openzro-dashboard",
+            "AuthUserIDClaim": "sub",
+            "OIDCConfigEndpoint": "https://openzro.example.com/dex/.well-known/openid-configuration",
+            "IdpSignKeyRefreshEnabled": true
+        },
+        "IdpManagerConfig": {
+            "ManagerType": "none"
+        }
+    }
 
   lifecycle: {} # Define lifecycle hooks (preStop, postStart) if needed.
 
