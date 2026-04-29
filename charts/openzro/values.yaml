@@ -696,8 +696,10 @@ dashboard:
     ## @param image.pullPolicy image pull policy
     pullPolicy: IfNotPresent
 
-    ## @param image.tag image tag (immutable tags are recommended)
-    tag: "v2.13.1"
+    ## @param image.tag image tag — empty falls back to Chart.appVersion
+    ## (currently 0.53.1-alpha.1) so `helm install` always pulls the
+    ## dashboard image matching the openzro/openzro core release.
+    tag: ""
 
   ## @param imagePullSecrets image pull secrets
   imagePullSecrets: []
