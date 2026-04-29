@@ -62,8 +62,21 @@ jobs:
       # GITHUB_TOKEN that already has packages:write on the org.
       - name: Login to ghcr.io for OCI push
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        continue-on-error: true
 
+      # OCI publish on tag push currently fails because charts/openzro
+      # auto-links to the openzro/openzro repo (GitHub package
+      # auto-linking by name match — there's a sibling `openzro` repo
+      # in the org), and the helms repo's GITHUB_TOKEN can't write
+      # to a package owned by a different repo. Bootstrap was done
+      # manually via PAT (`helm push oci://ghcr.io/openzro/charts`),
+      # so the packages exist; CI just can't update them on
+      # subsequent tags. The gh-pages publish above is the canonical
+      # path until we either rename the OCI namespace
+      # (e.g. ghcr.io/openzro/helmcharts/) or transfer the package
+      # ownership to openzro/helms.
       - name: Package and push charts as OCI artifacts
+        continue-on-error: true
         run: |
           set -euo pipefail
           mkdir -p .cr-release-packages
