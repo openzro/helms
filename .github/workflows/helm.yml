@@ -29,6 +29,16 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      - name: Register subchart helm repos
+        # chart-releaser-action's internal `cr package` invokes
+        # `helm package` which requires every dependency repo to be
+        # registered with the local helm client. ADR-0008 added the
+        # dexidp/dex subchart dependency to charts/openzro/Chart.yaml,
+        # so register it here before chart-releaser runs.
+        run: |
+          helm repo add dex https://charts.dexidp.io
+          helm repo update
+
       - name: Run chart-releaser
         # Publishes to the gh-pages branch of this repo, which is
         # served at https://openzro.github.io/helms — operators add
@@ -49,11 +59,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .cr-release-packages
-          for c in charts/openzro charts/openzro-operator charts/openzro-operator-config; do
-            [ -d "$c" ] || continue
-            helm dependency update "$c"
-            helm package "$c" --destination .cr-release-packages/
-          done
+          # Discover any chart by Chart.yaml location — handles the
+          # fork structural quirk where `charts/openzro-operator`
+          # nests its real chart at `charts/openzro-operator/kubernetes-operator/`.
+          while IFS= read -r chart_yaml; do
+            chart_dir="$(dirname "$chart_yaml")"
+            echo "Packaging $chart_dir"
+            helm dependency update "$chart_dir"
+            helm package "$chart_dir" --destination .cr-release-packages/
+          done < <(find charts -mindepth 2 -maxdepth 3 -name Chart.yaml)
+
           for tgz in .cr-release-packages/*.tgz; do
             echo "Pushing $tgz to oci://ghcr.io/openzro/charts"
             helm push "$tgz" oci://ghcr.io/openzro/charts
