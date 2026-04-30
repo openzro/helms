@@ -33,11 +33,12 @@ jobs:
 
       - name: Lint Helm Chart
         run: |
-          helm lint ./charts/openzro-operator
+          helm dependency update ./charts/openzro
+          helm lint ./charts/openzro
 
       - name: Install Helm chart for project
         run: |
-          helm install test-chart --create-namespace --namespace openzro --set 'operator.image.tag=debug' ./charts/openzro
+          helm install test-chart --create-namespace --namespace openzro ./charts/openzro
 
       - name: Check Helm release status
         run: |
