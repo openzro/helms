@@ -7,13 +7,12 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.0.0-alpha.6
-# appVersion follows the openzro/openzro tag — stays at the latest
-# tagged release. Bumped to 0.53.1-alpha.5 to pick up the multi-arch
-# manifest list, pure-Go SQLite (no more CGO stub crashes), Tooltip
-# fix, and the dashboard runtime-config sync (env-substitution now
-# happens before nginx serves).
-appVersion: "0.53.1-alpha.5"
+version: 2.0.0-alpha.7
+# appVersion follows the openzro/openzro tag. Bumped to 0.53.1-alpha.13
+# (alpha.13 is the first GREEN-end-to-end release with all package
+# artifacts published to pkg.openzro.io: apt + yum + pacman repos +
+# stable URLs at /windows/openzro.msi, /macos/openzro.pkg, latest.json).
+appVersion: "0.53.1-alpha.13"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn

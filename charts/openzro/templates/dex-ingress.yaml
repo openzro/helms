@@ -1,0 +1,62 @@
+{{- if .Values.dex.enabled -}}
+{{- if .Values.dex.ingress.enabled -}}
+{{- /*
+   Pass-through Ingress for Dex. The path prefix that nginx
+   (or any other ingress controller) routes here MUST match the
+   path component of `dex.config.issuer` exactly — Dex's template
+   engine derives its asset URL prefix from `issuerURL.Path`.
+   See dex/server/templates.go's relativeURL() function.
+
+   Common pitfall: do NOT add `nginx.org/rewrites` or
+   `nginx.ingress.kubernetes.io/rewrite-target` annotations that
+   strip the prefix. If the request arrives at Dex as `/auth`
+   instead of `/dex/auth`, Dex's relativeURL emits broken paths
+   for static assets (theme/styles.css ends up at /theme/... at
+   the browser instead of /dex/theme/...). Spent a whole evening
+   on this in the v0.53.1-alpha.7 lab smoke before figuring out
+   the path strip was the culprit.
+*/ -}}
+{{- $svcName := printf "%s-dex" .Release.Name -}}
+{{- $svcPort := (((.Values.dex).service).ports).http.port | default 5556 -}}
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-dex" (include "openzro.fullname" .) }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dex
+  {{- with .Values.dex.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.dex.ingress.className }}
+  {{- if .Values.dex.ingress.tls }}
+  tls:
+    {{- range .Values.dex.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.dex.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: {{ $svcPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}
