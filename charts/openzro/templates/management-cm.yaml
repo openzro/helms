@@ -1,17 +1,21 @@
 {{- if .Values.management.enabled -}}
 {{- /*
-   When postgres.enabled, override the StoreConfig section of the
-   operator-supplied management.json with values rendered from the
-   top-level `postgres:` block. The operator's raw configmap stays
-   the source for everything else (Signal/Relay/HttpConfig/etc.) —
-   we only swap the storage stanza so flipping postgres.enabled
-   on/off doesn't require duplicating Postgres connection details
-   in two places (top-level + the configmap string).
+   When postgres.enabled or mysql.enabled, override the StoreConfig
+   section of the operator-supplied management.json so the engine
+   matches the top-level db block. The operator's raw configmap
+   stays the source for everything else (Signal/Relay/HttpConfig/etc.)
+   — we only swap the storage stanza so flipping engines on/off
+   doesn't require duplicating connection details in two places.
+
+   The DSN itself is NOT rendered into the configmap (which is
+   plaintext). The management daemon reads it from
+   OPENZRO_STORE_ENGINE_<engine>_DSN, which the operator must set
+   via management.envFromSecret pointing at a Secret they manage.
 */ -}}
+{{- $engine := include "openzro.store.engine" . -}}
 {{- $cfg := .Values.management.configmap | fromJson -}}
-{{- if .Values.postgres.enabled -}}
-  {{- $store := dict "Engine" "postgres" "Postgres" (include "openzro.postgres.managementDSN" . | trim) -}}
-  {{- $_ := set $cfg "StoreConfig" $store -}}
+{{- if $engine -}}
+  {{- $_ := set $cfg "StoreConfig" (dict "Engine" $engine) -}}
 {{- end -}}
 apiVersion: v1
 kind: ConfigMap

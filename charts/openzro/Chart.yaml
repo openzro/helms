@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.0.0-alpha.8
+version: 2.0.0-alpha.9
 # appVersion follows the openzro/openzro tag. alpha.14 brings the
 # archlinux pkgver fix; alpha.13 was the first GREEN end-to-end with
 # every package artifact published to pkg.openzro.io.
