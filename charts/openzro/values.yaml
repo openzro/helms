@@ -13,6 +13,67 @@ nameOverride: ""
 ##
 fullnameOverride: ""
 
+## ============================================================
+## Postgres — single-source-of-truth for the entire stack.
+## ============================================================
+##
+## When enabled=true, the chart wires the same Postgres into:
+##   * management.StoreConfig (DSN injected into management.json
+##     overriding whatever StoreConfig the operator sets in
+##     management.configmap)
+##   * Dex's storage (rendered into a Secret the chart creates,
+##     consumed via dex.configSecret.create=false +
+##     dex.configSecret.name=<release>-dex-config)
+##
+## Both services hit the same Postgres SERVER but separate
+## DATABASES (separation of concerns + per-service credentials
+## via the optional `overrides` block).
+##
+## When enabled=false (default), each component falls back to its
+## own sqlite — fine for dev/lab, NOT recommended for prod or
+## any HA deployment (sqlite is single-process; multi-replica
+## management or Dex on sqlite diverges silently).
+##
+## Migration: when flipping enabled=true on an existing sqlite
+## deployment, plan the data migration yourself (pg_dump from a
+## sqlite3 → psql import). The chart does NOT attempt to migrate
+## data — that's the operator's responsibility.
+##
+postgres:
+  ## @param postgres.enabled Use Postgres for management + Dex storage. Set to true for HA / prod.
+  enabled: false
+
+  ## @param postgres.host Postgres hostname or IP.
+  host: ""
+
+  ## @param postgres.port Postgres port.
+  port: 5432
+
+  ## @param postgres.sslMode Postgres SSL mode (require | verify-ca | verify-full | disable).
+  sslMode: require
+
+  ## @param postgres.username Postgres username with access to BOTH databases below.
+  ## Override per-component via `postgres.overrides.<component>.username` if you
+  ## prefer separate credentials per service.
+  username: openzro
+
+  ## @param postgres.password Postgres password. Vault-encrypt in real inventories.
+  password: ""
+
+  databases:
+    ## @param postgres.databases.management Database for the management daemon.
+    management: openzro
+    ## @param postgres.databases.dex Database for the Dex IdP.
+    dex: dex
+
+  ## Per-component credential overrides — uncomment if you want a
+  ## dedicated Postgres user for Dex (or any other component).
+  ## Most teams keep a single user with access to both DBs.
+  # overrides:
+  #   dex:
+  #     username: dex
+  #     password: ""
+
 ## @section openZro Management
 
 management:
@@ -988,6 +1049,20 @@ metrics:
 ##
 dex:
   enabled: true
+
+  # When postgres.enabled (top-level), the openZro chart renders a
+  # Secret with Dex's full config pointed at postgres. Set the two
+  # lines below to make the Dex subchart consume it instead of
+  # building its own ConfigMap from the sqlite default.
+  #
+  #   configSecret:
+  #     create: false
+  #     name: <release>-openzro-dex-config
+  #
+  # (The release name prefix is the Helm release name, not the
+  # chart name — `helm install openzro …` makes it `openzro-…`.
+  # Match what `helm template … --show-only templates/dex-config-secret.yaml`
+  # emits.)
 
   # Image is pinned to a known-good Dex release. Bump in a
   # dependency-update PR (see helm-charts/.github/dependabot.yml).

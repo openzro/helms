@@ -171,3 +171,50 @@ Allow the release namespace to be overridden
 {{- default .Release.Namespace .Values.global.namespace -}}
 {{- end -}}
 
+
+{{/*
+Postgres credential helpers — central source of truth so chart
+templates render management's DSN string and Dex's config Secret
+from the same `postgres:` block in values.yaml.
+
+Component-aware variants check `postgres.overrides.<component>`
+first, falling back to the top-level username/password.
+*/}}
+
+{{- define "openzro.postgres.managementUser" -}}
+{{- $o := dig "overrides" "management" dict .Values.postgres -}}
+{{- $o.username | default .Values.postgres.username -}}
+{{- end -}}
+
+{{- define "openzro.postgres.managementPassword" -}}
+{{- $o := dig "overrides" "management" dict .Values.postgres -}}
+{{- $o.password | default .Values.postgres.password -}}
+{{- end -}}
+
+{{- define "openzro.postgres.dexUser" -}}
+{{- $o := dig "overrides" "dex" dict .Values.postgres -}}
+{{- $o.username | default .Values.postgres.username -}}
+{{- end -}}
+
+{{- define "openzro.postgres.dexPassword" -}}
+{{- $o := dig "overrides" "dex" dict .Values.postgres -}}
+{{- $o.password | default .Values.postgres.password -}}
+{{- end -}}
+
+{{/*
+Renders the lib/pq DSN string the management daemon expects.
+Format mirrors what `psql` accepts on the command line.
+*/}}
+{{- define "openzro.postgres.managementDSN" -}}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.management }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+{{- end -}}
+
+{{/*
+Name of the Secret the chart renders for Dex when postgres.enabled.
+The Dex subchart consumes it via configSecret.create=false +
+configSecret.name=<this>.
+*/}}
+{{- define "openzro.dex.configSecretName" -}}
+{{- printf "%s-dex-config" (include "openzro.fullname" .) -}}
+{{- end -}}
+
