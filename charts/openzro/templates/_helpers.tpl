@@ -173,13 +173,28 @@ Allow the release namespace to be overridden
 
 
 {{/*
-Postgres credential helpers — central source of truth so chart
+Database credential helpers — central source of truth so chart
 templates render management's DSN string and Dex's config Secret
-from the same `postgres:` block in values.yaml.
+from the same `postgres:`/`mysql:` block in values.yaml.
 
-Component-aware variants check `postgres.overrides.<component>`
+Component-aware variants check `<engine>.overrides.<component>`
 first, falling back to the top-level username/password.
 */}}
+
+{{/*
+Engine selection guard. Returns "postgres", "mysql", or "" (sqlite).
+Fails template rendering if both postgres.enabled and mysql.enabled
+are true — they're mutually exclusive.
+*/}}
+{{- define "openzro.store.engine" -}}
+{{- $pg := and .Values.postgres .Values.postgres.enabled -}}
+{{- $my := and .Values.mysql .Values.mysql.enabled -}}
+{{- if and $pg $my -}}
+{{- fail "postgres.enabled and mysql.enabled are mutually exclusive — pick one or the other" -}}
+{{- else if $pg -}}postgres
+{{- else if $my -}}mysql
+{{- end -}}
+{{- end -}}
 
 {{- define "openzro.postgres.managementUser" -}}
 {{- $o := dig "overrides" "management" dict .Values.postgres -}}
@@ -209,9 +224,39 @@ Format mirrors what `psql` accepts on the command line.
 host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.management }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
 {{- end -}}
 
+{{- define "openzro.mysql.managementUser" -}}
+{{- $o := dig "overrides" "management" dict .Values.mysql -}}
+{{- $o.username | default .Values.mysql.username -}}
+{{- end -}}
+
+{{- define "openzro.mysql.managementPassword" -}}
+{{- $o := dig "overrides" "management" dict .Values.mysql -}}
+{{- $o.password | default .Values.mysql.password -}}
+{{- end -}}
+
+{{- define "openzro.mysql.dexUser" -}}
+{{- $o := dig "overrides" "dex" dict .Values.mysql -}}
+{{- $o.username | default .Values.mysql.username -}}
+{{- end -}}
+
+{{- define "openzro.mysql.dexPassword" -}}
+{{- $o := dig "overrides" "dex" dict .Values.mysql -}}
+{{- $o.password | default .Values.mysql.password -}}
+{{- end -}}
+
 {{/*
-Name of the Secret the chart renders for Dex when postgres.enabled.
-The Dex subchart consumes it via configSecret.create=false +
+Renders the go-sql-driver/mysql DSN string the management daemon
+expects: user:password@tcp(host:port)/dbname?tls=<mode>&parseTime=true
+*/}}
+{{- define "openzro.mysql.managementDSN" -}}
+{{- $u := include "openzro.mysql.managementUser" . -}}
+{{- $p := include "openzro.mysql.managementPassword" . -}}
+{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.management .Values.mysql.tls -}}
+{{- end -}}
+
+{{/*
+Name of the Secret the chart renders for Dex when postgres.enabled
+or mysql.enabled. The Dex subchart consumes it via configSecret.create=false +
 configSecret.name=<this>.
 */}}
 {{- define "openzro.dex.configSecretName" -}}

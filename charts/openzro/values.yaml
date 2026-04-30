@@ -14,30 +14,36 @@ nameOverride: ""
 fullnameOverride: ""
 
 ## ============================================================
-## Postgres — single-source-of-truth for the entire stack.
+## External database — single-source-of-truth for the stack.
 ## ============================================================
 ##
-## When enabled=true, the chart wires the same Postgres into:
-##   * management.StoreConfig (DSN injected into management.json
-##     overriding whatever StoreConfig the operator sets in
-##     management.configmap)
-##   * Dex's storage (rendered into a Secret the chart creates,
-##     consumed via dex.configSecret.create=false +
-##     dex.configSecret.name=<release>-dex-config)
+## openZro talks to the management database AND Dex's database. Two
+## drivers are supported, both as bring-your-own-database (the chart
+## never installs a DBMS):
 ##
-## Both services hit the same Postgres SERVER but separate
-## DATABASES (separation of concerns + per-service credentials
-## via the optional `overrides` block).
+##   postgres  — recommended for HA/prod
+##   mysql     — supported alternative for shops already running MySQL
 ##
-## When enabled=false (default), each component falls back to its
-## own sqlite — fine for dev/lab, NOT recommended for prod or
-## any HA deployment (sqlite is single-process; multi-replica
-## management or Dex on sqlite diverges silently).
+## Pick AT MOST ONE; setting `enabled: true` on both is rejected by
+## the chart at template time.
 ##
-## Migration: when flipping enabled=true on an existing sqlite
-## deployment, plan the data migration yourself (pg_dump from a
-## sqlite3 → psql import). The chart does NOT attempt to migrate
-## data — that's the operator's responsibility.
+## When enabled, the chart wires the chosen DB into:
+##   * management.StoreConfig.Engine in management.json
+##   * Dex's storage (rendered into a Secret, consumed via
+##     dex.configSecret.create=false + dex.configSecret.name=...)
+##
+## Both services hit the same SERVER but separate DATABASES
+## (separation of concerns + per-service credentials via the
+## optional `overrides` block).
+##
+## With BOTH disabled (default), each component falls back to its
+## own sqlite — fine for dev/lab, NOT recommended for prod or any
+## HA deployment (sqlite is single-process; multi-replica management
+## or Dex on sqlite diverges silently).
+##
+## Migration: when switching engines or flipping enabled=true on an
+## existing sqlite deployment, plan the data migration yourself
+## (pg_dump / mysqldump → import). The chart does NOT migrate data.
 ##
 postgres:
   ## @param postgres.enabled Use Postgres for management + Dex storage. Set to true for HA / prod.
@@ -69,6 +75,40 @@ postgres:
   ## Per-component credential overrides — uncomment if you want a
   ## dedicated Postgres user for Dex (or any other component).
   ## Most teams keep a single user with access to both DBs.
+  # overrides:
+  #   dex:
+  #     username: dex
+  #     password: ""
+
+mysql:
+  ## @param mysql.enabled Use MySQL for management + Dex storage. Mutually exclusive with postgres.enabled.
+  enabled: false
+
+  ## @param mysql.host MySQL hostname or IP.
+  host: ""
+
+  ## @param mysql.port MySQL port.
+  port: 3306
+
+  ## @param mysql.tls MySQL TLS mode (true | false | skip-verify | preferred).
+  ## Maps to the go-sql-driver `tls` query parameter. Use "preferred" if your
+  ## server speaks TLS but you don't want to verify the certificate.
+  tls: preferred
+
+  ## @param mysql.username MySQL username with access to BOTH databases below.
+  ## Override per-component via `mysql.overrides.<component>.username`.
+  username: openzro
+
+  ## @param mysql.password MySQL password. Vault-encrypt in real inventories.
+  password: ""
+
+  databases:
+    ## @param mysql.databases.management Database for the management daemon.
+    management: openzro
+    ## @param mysql.databases.dex Database for the Dex IdP.
+    dex: dex
+
+  ## Per-component credential overrides.
   # overrides:
   #   dex:
   #     username: dex
