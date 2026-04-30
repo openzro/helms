@@ -1,4 +1,18 @@
 {{- if .Values.management.enabled -}}
+{{- /*
+   When postgres.enabled, override the StoreConfig section of the
+   operator-supplied management.json with values rendered from the
+   top-level `postgres:` block. The operator's raw configmap stays
+   the source for everything else (Signal/Relay/HttpConfig/etc.) —
+   we only swap the storage stanza so flipping postgres.enabled
+   on/off doesn't require duplicating Postgres connection details
+   in two places (top-level + the configmap string).
+*/ -}}
+{{- $cfg := .Values.management.configmap | fromJson -}}
+{{- if .Values.postgres.enabled -}}
+  {{- $store := dict "Engine" "postgres" "Postgres" (include "openzro.postgres.managementDSN" . | trim) -}}
+  {{- $_ := set $cfg "StoreConfig" $store -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,5 +22,5 @@ metadata:
     {{- include "openzro.management.labels" . | nindent 4 }}
 data:
   management.json: |-
-    {{- .Values.management.configmap | nindent 4 }}
+    {{- $cfg | toJson | nindent 4 }}
 {{- end -}}

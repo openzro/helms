@@ -7,12 +7,11 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.0.0-alpha.7
-# appVersion follows the openzro/openzro tag. Bumped to 0.53.1-alpha.13
-# (alpha.13 is the first GREEN-end-to-end release with all package
-# artifacts published to pkg.openzro.io: apt + yum + pacman repos +
-# stable URLs at /windows/openzro.msi, /macos/openzro.pkg, latest.json).
-appVersion: "0.53.1-alpha.13"
+version: 2.0.0-alpha.8
+# appVersion follows the openzro/openzro tag. alpha.14 brings the
+# archlinux pkgver fix; alpha.13 was the first GREEN end-to-end with
+# every package artifact published to pkg.openzro.io.
+appVersion: "0.53.1-alpha.14"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
