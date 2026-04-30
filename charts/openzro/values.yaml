@@ -37,24 +37,40 @@ management:
   ##   - DataStoreEncryptionKey  — generate with:
   ##       head -c 32 /dev/urandom | base64
   ##   - HttpConfig.AuthIssuer / OIDCConfigEndpoint — point at your
-  ##     dashboard hostname's Dex path (https://<domain>/dex)
+  ##     Dex hostname (e.g. https://dex.<domain>)
+  ##   - Signal.URI — your dashboard hostname over HTTPS
+  ##   - Relay.Addresses — your relay LoadBalancer's public hostname
+  ##   - Relay.Secret — share with relay's OZ_AUTH_SECRET env var
   ##
-  ## The defaults below use the in-cluster service names emitted by
-  ## this chart and are wired to single-account mode. Override any
-  ## field via your values.yaml. See
-  ## docs/operator/k8s-deployment-guide.md for the per-field
-  ## reference.
+  ## STORAGE WARNING — `StoreConfig.Engine: sqlite` is convenient for
+  ## single-replica labs but inappropriate for production:
+  ##   - SQLite + RWO PVC = 1 management replica MAX (no HA)
+  ##   - Backup/restore is harder than postgres pg_dump
+  ##   - For prod, switch to:
+  ##       "StoreConfig": { "Engine": "postgres" }
+  ##     and set OPENZRO_STORE_ENGINE_POSTGRES_DSN via management.envRaw.
+  ##
+  ## The defaults below match the layout the openzro/openzro lab uses
+  ## (single host openzro.example.com, dex on dex.<domain>, relay on
+  ## relay.<domain>). See docs/operator/k8s-deployment-guide.md for
+  ## the per-field reference.
   configmap: |
     {
-        "Stuns": [
-            {
-                "Proto": "udp",
-                "URI": "stun:openzro-relay:33080"
-            }
-        ],
+        "Stuns": [],
+        "TURNConfig": {
+            "Turns": [],
+            "TimeBasedCredentials": false,
+            "CredentialsTTL": "12h",
+            "Secret": "not-used"
+        },
+        "Relay": {
+            "Addresses": ["rel://relay.openzro.example.com:33080"],
+            "CredentialsTTL": "24h",
+            "Secret": "REPLACE_WITH_RELAY_OZ_AUTH_SECRET"
+        },
         "Signal": {
-            "Proto": "http",
-            "URI": "openzro-signal:80"
+            "Proto": "https",
+            "URI": "openzro.example.com:443"
         },
         "ReverseProxy": {
             "TrustedHTTPProxies": [],
@@ -68,10 +84,10 @@ management:
         },
         "HttpConfig": {
             "Address": "0.0.0.0:33071",
-            "AuthIssuer": "https://openzro.example.com/dex",
+            "AuthIssuer": "https://dex.openzro.example.com",
             "AuthAudience": "openzro-dashboard",
             "AuthUserIDClaim": "sub",
-            "OIDCConfigEndpoint": "https://openzro.example.com/dex/.well-known/openid-configuration",
+            "OIDCConfigEndpoint": "https://dex.openzro.example.com/.well-known/openid-configuration",
             "IdpSignKeyRefreshEnabled": true
         },
         "IdpManagerConfig": {
@@ -981,6 +997,32 @@ dex:
     pullPolicy: IfNotPresent
 
   replicaCount: 1
+
+  # Dex distroless image runs as uid 1001 (non-root). PVC mounts
+  # default to root:root 0755, so without an fsGroup matching the
+  # process uid, dex can't create /var/lib/dex/dex.db. Discovered the
+  # hard way during the v0.53.1-alpha.7 lab smoke test (chart helms
+  # 35de458d).
+  podSecurityContext:
+    fsGroup: 1001
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  # The upstream dexidp/dex chart's deployment.yaml gates the gRPC
+  # port on `Values.grpc.enabled` AND service.yaml gates port 5557
+  # on the same. Off by default upstream — turn it on by default in
+  # the openZro chart because management's HealthCheck dials port
+  # 5557 on boot and times out otherwise.
+  grpc:
+    enabled: true
+  service:
+    ports:
+      http:
+        port: 5556
+      grpc:
+        port: 5557
+      telemetry:
+        port: 5558
 
   # Dex itself listens on 5556 (HTTP/OIDC) and 5557 (gRPC management
   # API). The management Deployment talks to Dex over the gRPC API
