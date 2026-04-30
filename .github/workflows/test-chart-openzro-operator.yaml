@@ -32,24 +32,27 @@ jobs:
         run: helm version
 
       - name: Lint Helm Chart
+        # The operator chart lives at charts/openzro-operator/kubernetes-operator/
+        # — `charts/openzro-operator/` itself is just a directory holding both
+        # the CRDs and the actual Chart in a sibling dir.
         run: |
-          helm lint ./charts/openzro-operator
+          helm lint ./charts/openzro-operator/kubernetes-operator
 
       - name: Install cert-manager via Helm
         run: |
           helm repo add jetstack https://charts.jetstack.io
           helm repo update
           helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
- 
+
       - name: Wait for cert-manager to be ready
         run: |
           kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager
           kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager-cainjector
           kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager-webhook
- 
+
       - name: Install Helm chart for project
         run: |
-          helm install test-chart --create-namespace --namespace openzro --set 'operator.image.tag=debug' ./charts/openzro-operator
+          helm install test-chart --create-namespace --namespace openzro --set 'operator.image.tag=debug' ./charts/openzro-operator/kubernetes-operator
 
       - name: Check Helm release status
         run: |
