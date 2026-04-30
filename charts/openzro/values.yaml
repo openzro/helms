@@ -1046,6 +1046,37 @@ dex:
   #
   # Override `config.issuer` to your real domain. Override the static
   # password before exposing this beyond a private network.
+  ## Dex ingress — pass-through routing under the same hostname as
+  ## the dashboard, sharing the same TLS cert. Path MUST match the
+  ## `path` component of `dex.config.issuer` (default `/dex`) and
+  ## MUST NOT have a rewrite annotation that strips the prefix —
+  ## see templates/dex-ingress.yaml for the rationale.
+  ingress:
+    enabled: false
+    className: ""
+
+    ## Annotations — when running with NGINX Inc Ingress Controller
+    ## (mergeable-ingress-type), set:
+    ##   nginx.org/mergeable-ingress-type: minion
+    ## so this minion attaches to the dashboard's master ingress on
+    ## the same host. Do NOT add nginx.org/rewrites or any path
+    ## rewrite annotation — Dex needs to see the /dex prefix.
+    annotations: {}
+
+    hosts:
+      - host: openzro.example.com
+        paths:
+          - path: /dex
+            pathType: Prefix
+
+    ## TLS — most operators omit this and let the dashboard's
+    ## master ingress hold the cert (mergeable-ingress collapses
+    ## TLS to the master). Only fill in if Dex is on its own host.
+    tls: []
+    #  - secretName: openzro-tls
+    #    hosts:
+    #      - openzro.example.com
+
   config:
     issuer: https://openzro.example.com/dex
 
