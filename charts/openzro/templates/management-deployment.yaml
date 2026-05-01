@@ -1,7 +1,7 @@
 {{- if .Values.management.enabled -}}
-
+{{- $kind := include "openzro.cluster.workloadKind" . -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: {{ $kind }}
 metadata:
   name: {{ include "openzro.fullname" . }}-management
   namespace: {{ include "openzro.namespace" . }}
@@ -13,6 +13,14 @@ metadata:
     {{- include "openzro.management.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.management.replicaCount }}
+  {{- if eq $kind "StatefulSet" }}
+  # Embedded NATS clustering needs stable DNS names per pod (so each
+  # peer resolves its siblings via the headless service). The pods
+  # are otherwise interchangeable — management state lives in the
+  # external Postgres/MySQL, not in pod-local disk.
+  serviceName: {{ include "openzro.cluster.headlessSvc" (dict "ctx" . "component" "management") }}
+  podManagementPolicy: Parallel
+  {{- else }}
   # Recreate by default (overridable via management.strategy). The
   # management daemon mounts /var/lib/openzro from a PVC, and most
   # storage classes (Longhorn, GP3-RWO, NFS-RWO, anything that isn't
@@ -21,11 +29,13 @@ spec:
   # while the old one keeps running, the deployment never converges,
   # and the operator has to manually delete the old pod to break
   # the deadlock. Recreate avoids the deadlock entirely; downtime
-  # during an upgrade is ~3-5s on healthy hardware (single-replica
-  # by design — multi-replica HA needs the embedded NATS path,
-  # which is a separate switch).
+  # during an upgrade is ~3-5s on healthy hardware. Multi-replica HA
+  # is configured via `cluster.mode=embedded` (StatefulSet) or
+  # `cluster.mode=external` (this branch with replicaCount>1, broker
+  # external).
   strategy:
     {{- toYaml .Values.management.strategy | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "openzro.management.selectorLabels" . | nindent 6 }}
@@ -58,8 +68,8 @@ spec:
             - {{ . }}
           {{- end }}
           {{- end }}
-          {{- if or (.Values.management.env) (.Values.management.envRaw) (.Values.management.envFromSecret) }}
           env:
+          {{- include "openzro.cluster.env" (dict "ctx" . "component" "management" "replicas" .Values.management.replicaCount) | nindent 12 }}
           {{- range $key, $val := .Values.management.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
@@ -76,7 +86,6 @@ spec:
                   name: {{ (split "/" $val)._0 }}
                   key: {{ (split "/" $val)._1 }}
           {{- end }}
-          {{- end }}
           {{- with .Values.management.lifecycle }}
           lifecycle: {{ toYaml . | nindent 12 }}
           {{- end }}
@@ -90,6 +99,16 @@ spec:
             - name: metrics
               containerPort: {{ .Values.management.metrics.port }}
               protocol: TCP
+          {{- if eq $kind "StatefulSet" }}
+            # Embedded NATS — client port for in-pod connections,
+            # cluster port for peer routing across StatefulSet replicas.
+            - name: nats-client
+              containerPort: {{ .Values.cluster.embedded.clientPort }}
+              protocol: TCP
+            - name: nats-cluster
+              containerPort: {{ .Values.cluster.embedded.clusterPort }}
+              protocol: TCP
+          {{- end }}
           {{- if .Values.management.livenessProbe }}
             {{- with .Values.management.livenessProbe }}
           livenessProbe:
@@ -129,7 +148,11 @@ spec:
           configMap:
             name: {{ include "openzro.fullname" . }}-management
         - name: management
-          {{- if .Values.management.persistentVolume.enabled }}
+          {{- /* PVC mount only on Deployment paths (disabled / external).
+                 Embedded mode is StatefulSet — the PVC template is
+                 suppressed and we use emptyDir for the volume; shared
+                 state lives in Postgres/MySQL by contract. */}}
+          {{- if and .Values.management.persistentVolume.enabled (ne $kind "StatefulSet") }}
           persistentVolumeClaim:
             claimName: {{ include "openzro.fullname" . }}-management
           {{- else }}
