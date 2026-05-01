@@ -185,14 +185,43 @@ management:
         },
         "HttpConfig": {
             "Address": "0.0.0.0:33071",
-            "AuthIssuer": "https://dex.openzro.example.com",
+            "AuthIssuer": "https://openzro.example.com/dex",
             "AuthAudience": "openzro-dashboard",
             "AuthUserIDClaim": "sub",
-            "OIDCConfigEndpoint": "https://dex.openzro.example.com/.well-known/openid-configuration",
+            "OIDCConfigEndpoint": "https://openzro.example.com/dex/.well-known/openid-configuration",
             "IdpSignKeyRefreshEnabled": true
         },
         "IdpManagerConfig": {
             "ManagerType": "none"
+        },
+        "PKCEAuthorizationFlow": {
+            "ProviderConfig": {
+                "Audience": "openzro-dashboard",
+                "ClientID": "openzro-dashboard",
+                "ClientSecret": "",
+                "Domain": "openzro.example.com",
+                "AuthorizationEndpoint": "https://openzro.example.com/dex/auth",
+                "TokenEndpoint": "https://openzro.example.com/dex/token",
+                "Scope": "openid profile email offline_access",
+                "RedirectURLs": [
+                    "http://localhost:53000/",
+                    "http://localhost:54000/",
+                    "http://localhost:55000/"
+                ],
+                "UseIDToken": false
+            }
+        },
+        "DeviceAuthorizationFlow": {
+            "Provider": "hosted",
+            "ProviderConfig": {
+                "Audience": "openzro-dashboard",
+                "ClientID": "openzro-dashboard",
+                "Domain": "openzro.example.com",
+                "TokenEndpoint": "https://openzro.example.com/dex/token",
+                "DeviceAuthEndpoint": "https://openzro.example.com/dex/device/code",
+                "Scope": "openid profile email offline_access",
+                "UseIDToken": false
+            }
         }
     }
 
@@ -201,6 +230,14 @@ management:
   ## @param management.replicaCount Number of management pod replicas.
   ##
   replicaCount: 1
+
+  ## @param management.strategy Deployment strategy.
+  ## Default Recreate to avoid Multi-Attach errors on RWO PVCs
+  ## (Longhorn, GP3, NFS-RWO, ...). Override to RollingUpdate only
+  ## when running multi-replica with RWX storage AND embedded NATS
+  ## clustering on (the management daemon's HA path).
+  strategy:
+    type: Recreate
 
   ## @param management.env Environment variables for the management pod.
   ##
@@ -1104,12 +1141,23 @@ dex:
   # Match what `helm template … --show-only templates/dex-config-secret.yaml`
   # emits.)
 
-  # Image is pinned to a known-good Dex release. Bump in a
-  # dependency-update PR (see helm-charts/.github/dependabot.yml).
+  # ghcr.io/openzro/dex is upstream `dexidp/dex` with the brand
+  # theme baked into /srv/dex/web/themes/openzro/. Built and pushed
+  # by the openzro/openzro release_dex job on every tag, so the
+  # image tag tracks Chart.yaml's appVersion. Operators who want
+  # vanilla Dex (no openZro theme) can override `repository:
+  # ghcr.io/dexidp/dex` and pin a Dex tag (e.g. `v2.45.0-distroless`).
+  # Operators who want their OWN theme override via
+  # `openzro-dex-theme` configmap (see `dex.volumes`) — those files
+  # mask the bundled ones at the same path.
   image:
-    repository: ghcr.io/dexidp/dex
-    tag: v2.45.0-distroless
+    repository: ghcr.io/openzro/dex
     pullPolicy: IfNotPresent
+    # Pin the image tag to the chart's AppVersion. Subcharts get raw
+    # values (no `default .Chart.AppVersion` magic), so the parent
+    # has to spell the tag here. Update this in lockstep with
+    # Chart.yaml::appVersion when bumping the chart.
+    tag: 0.53.1-alpha.17
 
   replicaCount: 1
 
@@ -1235,14 +1283,24 @@ dex:
         userID: openzro-bootstrap-admin
 
     staticClients:
-      # Dashboard SPA — public client (no secret), PKCE.
+      # Single client used by BOTH the dashboard SPA and the openzro
+      # CLI. Public (no secret) + PKCE. Single client_id keeps the
+      # management daemon's `HttpConfig.AuthAudience` simple — it
+      # validates one audience for tokens from any path. The CLI's
+      # localhost redirect URIs are added alongside the dashboard's
+      # so both flows succeed at /dex/auth without a separate Dex
+      # client. Loopback ports 53000-55000 mirror the range the CLI
+      # tries when starting its callback listener.
       - id: openzro-dashboard
-        name: openZro Dashboard
+        name: openZro
         public: true
         redirectURIs:
           - https://openzro.example.com/auth
           - https://openzro.example.com/silent-auth
           - https://openzro.example.com/
+          - http://localhost:53000/
+          - http://localhost:54000/
+          - http://localhost:55000/
 
     # Connectors block intentionally left empty here — the dashboard's
     # Settings → Authentication Providers tab manages connectors at
@@ -1269,9 +1327,18 @@ dex:
   #     mode). Production should provision the secret via
   #     cert-manager (see openzro-operator-config chart).
   volumes:
+    # Optional override for the theme. The default image
+    # (ghcr.io/openzro/dex) ships the openZro brand theme already
+    # baked in at /srv/dex/web/themes/openzro/, so operators don't
+    # need to do anything to get a branded login screen. This
+    # ConfigMap, when present, MASKS the bundled theme and lets an
+    # operator drop in their own logo/styles without rebuilding the
+    # image. Name is hardcoded (not templated) because subchart
+    # values aren't re-evaluated by Helm — historic bug, see chart
+    # CHANGELOG.
     - name: openzro-theme
       configMap:
-        name: '{{ include "openzro.fullname" . }}-dex-theme'
+        name: openzro-dex-theme
         optional: true
     - name: dex-grpc-certs
       secret:
