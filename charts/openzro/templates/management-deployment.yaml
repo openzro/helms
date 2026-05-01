@@ -13,6 +13,19 @@ metadata:
     {{- include "openzro.management.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.management.replicaCount }}
+  # Recreate by default (overridable via management.strategy). The
+  # management daemon mounts /var/lib/openzro from a PVC, and most
+  # storage classes (Longhorn, GP3-RWO, NFS-RWO, anything that isn't
+  # explicitly RWX) refuse the second pod's volume attach during a
+  # rolling upgrade — the new pod hangs on `Multi-Attach error`
+  # while the old one keeps running, the deployment never converges,
+  # and the operator has to manually delete the old pod to break
+  # the deadlock. Recreate avoids the deadlock entirely; downtime
+  # during an upgrade is ~3-5s on healthy hardware (single-replica
+  # by design — multi-replica HA needs the embedded NATS path,
+  # which is a separate switch).
+  strategy:
+    {{- toYaml .Values.management.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "openzro.management.selectorLabels" . | nindent 6 }}
