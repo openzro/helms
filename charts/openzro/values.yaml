@@ -1373,6 +1373,13 @@ dex:
           - http://localhost:53000/
           - http://localhost:54000/
           - http://localhost:55000/
+          # Device Authorization Flow callback. Dex serves this path
+          # internally to bridge the user's browser back to the CLI's
+          # device_code polling. Without it, `openzro login` (used by
+          # the desktop client + headless install) fails at the SSO
+          # step with `Bad Request: Unregistered redirect_uri`.
+          # Discovered in the v0.53.1-alpha.22 lab smoke test.
+          - /device/callback
 
     # Connectors block intentionally left empty here — the dashboard's
     # Settings → Authentication Providers tab manages connectors at
@@ -1416,21 +1423,25 @@ dex:
       secret:
         secretName: openzro-dex-grpc
         optional: true
-    # PVC for Dex's sqlite store at /var/lib/dex/dex.db. The PVC is
-    # only created when `dex.persistence.enabled: true` (the default);
-    # operators who switch to postgres storage should set
-    # `dex.persistence.enabled: false` AND remove this entry from
-    # `dex.volumes` / `dex.volumeMounts` to avoid mounting an unused
-    # volume.
+    # ─────────────────────────────────────────────────────────────
+    # NOTE — sqlite operators only:
     #
-    # claimName is hardcoded (no release prefix) — the upstream
-    # dexidp/dex subchart doesn't tpl nested values in its volume
-    # block, so a `{{ include }}` here would reach the kube-apiserver
-    # as a literal string. See templates/dex-pvc.yaml for the
-    # matching PVC name.
-    - name: dex-data
-      persistentVolumeClaim:
-        claimName: openzro-dex-data
+    # If you keep the default `dex.config.storage.type: sqlite3`,
+    # uncomment the dex-data block below AND set
+    # `dex.persistence.enabled: true` to mount a PVC for /var/lib/dex.
+    # Without those, Dex restarts wipe its connector state.
+    #
+    # External-DB operators (postgres.enabled / mysql.enabled) leave
+    # this commented out — the chart auto-routes Dex storage to the
+    # external DB via templates/dex-config-secret.yaml, and the
+    # sqlite file is dead weight.
+    #
+    # claimName is hardcoded (no release prefix) because the upstream
+    # dexidp/dex subchart doesn't tpl nested values in volume blocks.
+    # ─────────────────────────────────────────────────────────────
+    # - name: dex-data
+    #   persistentVolumeClaim:
+    #     claimName: openzro-dex-data
   volumeMounts:
     - name: openzro-theme
       mountPath: /srv/dex/web/themes/openzro
@@ -1438,14 +1449,17 @@ dex:
     - name: dex-grpc-certs
       mountPath: /etc/dex/grpc-certs
       readOnly: true
-    - name: dex-data
-      mountPath: /var/lib/dex
+    # Mirror of the volume note above — uncomment for sqlite mode.
+    # - name: dex-data
+    #   mountPath: /var/lib/dex
 
-  # Persistent volume for sqlite storage. For production HA, switch
-  # storage.type to "postgres" and disable persistence (also remove
-  # the dex-data entry from `dex.volumes` / `dex.volumeMounts` above).
+  # Persistent volume for sqlite storage. Default is `false` because
+  # the recommended profile (postgres.enabled or mysql.enabled) drops
+  # sqlite entirely. Sqlite-only operators flip this to `true` AND
+  # uncomment the dex-data entries in `dex.volumes` / `dex.volumeMounts`
+  # above. See ADR-0008 for the storage decision rationale.
   persistence:
-    enabled: true
+    enabled: false
     size: 1Gi
     accessModes: [ReadWriteOnce]
     # storageClass: ""  # uncomment + set to pin a class; default uses
