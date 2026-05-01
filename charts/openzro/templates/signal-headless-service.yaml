@@ -1,0 +1,26 @@
+{{- /*
+Same shape as management-headless-service.yaml; mirrored here for
+the signal StatefulSet so signal pods can NATS-cluster the same way
+management does.
+*/ -}}
+{{- if and .Values.signal.enabled (eq (.Values.cluster.mode | default "disabled") "embedded") -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openzro.cluster.headlessSvc" (dict "ctx" . "component" "signal") }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.signal.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "openzro.signal.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: nats-client
+      port: {{ .Values.cluster.embedded.clientPort }}
+      targetPort: nats-client
+    - name: nats-cluster
+      port: {{ .Values.cluster.embedded.clusterPort }}
+      targetPort: nats-cluster
+{{- end }}

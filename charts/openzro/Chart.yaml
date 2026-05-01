@@ -7,7 +7,14 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.0.0-alpha.11
+version: 2.1.0-alpha.1
+# Major bump (2.0 → 2.1) marks the HA capability landing: optional
+# StatefulSet workloads for management + signal, NATS subchart for
+# external-broker mode, and the `cluster.mode` switch (disabled |
+# embedded | external) that ties them together. The 2.0 line stays
+# usable as `cluster.mode=disabled` (the new default), so existing
+# operators upgrade in place without behavior change.
+#
 # appVersion follows the openzro/openzro tag. alpha.20 ships the
 # Claude Design Dex login (forked templates) + shield-based systray
 # icons; alpha.21 hotfixes a User.Copy regression caught on main.
@@ -36,3 +43,7 @@ dependencies:
     version: 0.23.0
     repository: https://charts.dexidp.io
     condition: dex.enabled
+  - name: nats
+    version: 1.3.13
+    repository: https://nats-io.github.io/k8s/helm/charts/
+    condition: nats.enabled

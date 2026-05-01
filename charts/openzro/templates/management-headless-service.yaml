@@ -1,0 +1,31 @@
+{{- /*
+Headless service backing the management StatefulSet's per-pod DNS
+records when cluster.mode=embedded. Each pod gets a stable
+`<release>-management-<i>.<release>-management-headless.<ns>.svc.cluster.local`
+name that the embedded NATS server uses to resolve sibling routes
+(see _cluster.tpl::openzro.cluster.peers).
+
+Only rendered in embedded mode — Deployments don't need stable
+per-pod DNS, and an unused headless service is just noise.
+*/ -}}
+{{- if and .Values.management.enabled (eq (.Values.cluster.mode | default "disabled") "embedded") -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openzro.cluster.headlessSvc" (dict "ctx" . "component" "management") }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "openzro.management.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: nats-client
+      port: {{ .Values.cluster.embedded.clientPort }}
+      targetPort: nats-client
+    - name: nats-cluster
+      port: {{ .Values.cluster.embedded.clusterPort }}
+      targetPort: nats-cluster
+{{- end }}

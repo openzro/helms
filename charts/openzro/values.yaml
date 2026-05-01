@@ -114,6 +114,78 @@ mysql:
   #     username: dex
   #     password: ""
 
+## ============================================================
+## Cluster coordination — required for HA (multi-replica) deployments.
+## ============================================================
+##
+## Management and signal use a cluster broker (NATS) for two things:
+##
+##   1. Distributed locks — `cluster.Coordinator` in management
+##      serializes per-account / per-peer mutations across replicas
+##      via JetStream KV. Without a broker, two pods can both try to
+##      mutate the same account and corrupt state.
+##
+##   2. Signal pub/sub — when more than one signal-server is up,
+##      peers may register on different pods. The dispatcher uses
+##      NATS subjects (`oz.signal.peer.<peerID>`) so any pod can
+##      route a message to a peer attached to a sibling pod.
+##
+## Three modes are supported:
+##
+##   disabled  — single instance, no broker. management.replicaCount
+##               and signal.replicaCount must stay 1. This is the
+##               default and matches the v0.53.x lab + small prod
+##               profile.
+##
+##   embedded  — each management/signal pod runs an embedded NATS
+##               server (single binary, no external dep). The chart
+##               flips the workload kind from Deployment to
+##               StatefulSet, adds a headless service for stable
+##               peer DNS, and wires `OPENZRO_BROKER=embedded` +
+##               `OPENZRO_CLUSTER_PEERS` automatically. Postgres or
+##               MySQL is required for management state — sqlite is
+##               single-process only.
+##
+##   external  — connect to a NATS deployment provisioned outside
+##               this chart (or via the `nats` subchart, see below).
+##               Workloads stay as Deployment, so no PVC-per-pod
+##               and rolling upgrades work normally. Recommended
+##               profile for prod: simpler upgrade story, NATS HA
+##               handled by its own chart.
+##
+## See [docs/adr/0006-dex-idp.md] and [cluster/factory/factory.go]
+## for the binary-side env contract.
+##
+cluster:
+  ## @param cluster.mode Cluster broker mode. One of `disabled`, `embedded`, `external`.
+  mode: disabled
+
+  ## When `mode=external` and you do NOT use the `nats` subchart
+  ## bundled below, set this to your existing NATS URL.
+  ## When `mode=external` AND `nats.enabled=true`, leave empty —
+  ## the chart auto-derives `nats://<release>-nats:4222`.
+  external:
+    ## @param cluster.external.url NATS connection URL when mode=external and not using the nats subchart.
+    url: ""
+
+  embedded:
+    ## @param cluster.embedded.clientPort Embedded NATS client port (where management/signal connect locally).
+    clientPort: 4222
+
+    ## @param cluster.embedded.clusterPort Embedded NATS cluster routes port (peer-to-peer).
+    clusterPort: 6222
+
+    jetstream:
+      ## @param cluster.embedded.jetstream.storage JetStream storage. `memory` (recommended for HA: locks + pub/sub
+      ## are short-lived state, no correctness loss on pod restart) or `file` (requires RWX storageClass + sizeGiB).
+      storage: memory
+
+      ## @param cluster.embedded.jetstream.sizeGiB JetStream PVC size in GiB. Only used when storage=file.
+      sizeGiB: 1
+
+      ## @param cluster.embedded.jetstream.storageClass storageClass for the JetStream PVC. Only used when storage=file.
+      storageClass: ""
+
 ## @section openZro Management
 
 management:
@@ -1495,3 +1567,48 @@ gatewayApi:
       enabled: true
       path: /
       pathType: PathPrefix
+
+## ============================================================
+## NATS subchart — optional broker for cluster.mode=external.
+## ============================================================
+##
+## Pulled from the official `nats-io/k8s` Helm repo
+## (https://nats-io.github.io/k8s/helm/charts/), released as
+## Apache-2.0. When `enabled=true`, the chart installs NATS
+## alongside openZro and the `cluster.mode=external` plumbing
+## auto-points at `nats://<release>-nats:4222`.
+##
+## Defaults below are tuned for the openZro use case (locks +
+## ephemeral pub/sub):
+##
+##   * 3 replicas with cluster routing → quorum survives a node
+##     loss
+##   * JetStream enabled, **memory store** by default — JS only
+##     holds short-lived locks + KV state for the management
+##     coordinator. No correctness loss on pod restart, no PVC
+##     coupling. Set `nats.config.jetstream.fileStore.enabled=true`
+##     in values overrides if you want operational durability.
+##   * No leaf-node, no MQTT, no WebSocket — only `nats://` on
+##     port 4222 is exposed.
+##
+## Operators who already run NATS on the cluster set
+## `nats.enabled: false` and configure `cluster.external.url`
+## directly.
+##
+nats:
+  ## @param nats.enabled Install the NATS subchart for cluster.mode=external.
+  enabled: false
+
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    jetstream:
+      enabled: true
+      memoryStore:
+        enabled: true
+        ## Sized for openZro KV (locks + small ephemeral state).
+        ## Bump if you observe MaxMemoryReached errors in NATS logs.
+        maxSize: 256Mi
+      fileStore:
+        enabled: false

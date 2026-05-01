@@ -1,5 +1,13 @@
+{{- /*
+PVC is suppressed in cluster.mode=embedded: each pod runs its own
+embedded NATS, the management workload is a StatefulSet, and any
+shared on-disk state would fight for a single RWO volume across
+replicas. Embedded mode requires Postgres or MySQL anyway (see the
+cluster.mode comment block in values.yaml), so /var/lib/openzro
+just holds ephemeral runtime artifacts that an emptyDir handles.
+*/ -}}
 {{- if .Values.management.enabled -}}
-{{- if .Values.management.persistentVolume.enabled -}}
+{{- if and .Values.management.persistentVolume.enabled (ne (.Values.cluster.mode | default "disabled") "embedded") -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

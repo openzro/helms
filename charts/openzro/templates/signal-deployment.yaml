@@ -1,7 +1,7 @@
 {{- if .Values.signal.enabled -}}
-
+{{- $kind := include "openzro.cluster.workloadKind" . -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: {{ $kind }}
 metadata:
   name: {{ include "openzro.fullname" . }}-signal
   namespace: {{ include "openzro.namespace" . }}
@@ -9,6 +9,10 @@ metadata:
     {{- include "openzro.signal.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.signal.replicaCount }}
+  {{- if eq $kind "StatefulSet" }}
+  serviceName: {{ include "openzro.cluster.headlessSvc" (dict "ctx" . "component" "signal") }}
+  podManagementPolicy: Parallel
+  {{- end }}
   selector:
     matchLabels:
       {{- include "openzro.signal.selectorLabels" . | nindent 6 }}
@@ -41,6 +45,8 @@ spec:
             - "{{ .Values.signal.logLevel }}"
             - "--log-file"
             - "console"
+          env:
+          {{- include "openzro.cluster.env" (dict "ctx" . "component" "signal" "replicas" .Values.signal.replicaCount) | nindent 12 }}
           ports:
             - name: grpc
               containerPort: {{ .Values.signal.containerPort }}
@@ -48,6 +54,14 @@ spec:
             - name: metrics
               containerPort: {{ .Values.signal.metrics.port }}
               protocol: TCP
+          {{- if eq $kind "StatefulSet" }}
+            - name: nats-client
+              containerPort: {{ .Values.cluster.embedded.clientPort }}
+              protocol: TCP
+            - name: nats-cluster
+              containerPort: {{ .Values.cluster.embedded.clusterPort }}
+              protocol: TCP
+          {{- end }}
           {{- if .Values.signal.livenessProbe }}
             {{- with .Values.signal.livenessProbe }}
           livenessProbe:
