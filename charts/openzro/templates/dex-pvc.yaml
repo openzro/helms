@@ -2,12 +2,18 @@
 PVC for the Dex sqlite store at /var/lib/dex/dex.db. Without this the
 in-cluster Dex restarts (rollouts, evictions, OOM kills) wipe its
 state — every connector definition the operator configured via the
-dashboard's Authentication Providers tab goes with it. The
-embedded sqlite path is fine for HA-of-one deployments; HA proper
-should swap dex.config.storage.type to "postgres" and set
-dex.persistence.enabled=false to skip this PVC.
+dashboard's Authentication Providers tab goes with it.
+
+Suppressed automatically when `postgres.enabled` or `mysql.enabled`
+is set: in those modes the chart writes a Dex config secret that
+points storage at the external DB (templates/dex-config-secret.yaml),
+and the sqlite file is dead weight occupying a volume that nothing
+reads from. Auto-suppression here saves operators from forgetting
+to also flip `dex.persistence.enabled=false` when migrating to an
+external DB.
 */}}
-{{- if and .Values.dex.enabled .Values.dex.persistence.enabled }}
+{{- $engine := include "openzro.store.engine" . -}}
+{{- if and .Values.dex.enabled .Values.dex.persistence.enabled (not $engine) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

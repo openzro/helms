@@ -1,13 +1,17 @@
 {{- /*
-PVC is suppressed in cluster.mode=embedded: each pod runs its own
-embedded NATS, the management workload is a StatefulSet, and any
-shared on-disk state would fight for a single RWO volume across
-replicas. Embedded mode requires Postgres or MySQL anyway (see the
-cluster.mode comment block in values.yaml), so /var/lib/openzro
-just holds ephemeral runtime artifacts that an emptyDir handles.
+PVC is suppressed whenever cluster.mode is anything other than
+`disabled`. Both `embedded` and `external` modes assume HA — multiple
+management replicas — and any shared on-disk state would fight for
+a single RWO volume (Multi-Attach deadlock; we hit this in the lab
+during the v0.53.1-alpha.21 → 2.1.0-alpha.1 upgrade). HA modes
+require Postgres or MySQL anyway, so /var/lib/openzro holds only
+ephemeral runtime artifacts that an emptyDir handles fine.
+
+In single-instance (`disabled`) mode, the PVC is preserved so sqlite
+state survives pod restarts.
 */ -}}
 {{- if .Values.management.enabled -}}
-{{- if and .Values.management.persistentVolume.enabled (ne (.Values.cluster.mode | default "disabled") "embedded") -}}
+{{- if and .Values.management.persistentVolume.enabled (eq (.Values.cluster.mode | default "disabled") "disabled") -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
