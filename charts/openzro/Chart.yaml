@@ -7,11 +7,11 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.0.0-alpha.10
-# appVersion follows the openzro/openzro tag. alpha.14 brings the
-# archlinux pkgver fix; alpha.13 was the first GREEN end-to-end with
-# every package artifact published to pkg.openzro.io.
-appVersion: "0.53.1-alpha.17"
+version: 2.0.0-alpha.11
+# appVersion follows the openzro/openzro tag. alpha.20 ships the
+# Claude Design Dex login (forked templates) + shield-based systray
+# icons; alpha.21 hotfixes a User.Copy regression caught on main.
+appVersion: "0.53.1-alpha.21"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
