@@ -148,11 +148,11 @@ spec:
           configMap:
             name: {{ include "openzro.fullname" . }}-management
         - name: management
-          {{- /* PVC mount only on Deployment paths (disabled / external).
-                 Embedded mode is StatefulSet — the PVC template is
-                 suppressed and we use emptyDir for the volume; shared
+          {{- /* PVC mount only when cluster.mode=disabled (single-
+                 instance). HA modes (embedded/external) suppress the
+                 PVC to avoid Multi-Attach across replicas — shared
                  state lives in Postgres/MySQL by contract. */}}
-          {{- if and .Values.management.persistentVolume.enabled (ne $kind "StatefulSet") }}
+          {{- if and .Values.management.persistentVolume.enabled (eq (.Values.cluster.mode | default "disabled") "disabled") }}
           persistentVolumeClaim:
             claimName: {{ include "openzro.fullname" . }}-management
           {{- else }}
