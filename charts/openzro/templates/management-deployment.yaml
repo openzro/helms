@@ -20,8 +20,22 @@ spec:
   # external Postgres/MySQL, not in pod-local disk.
   serviceName: {{ include "openzro.cluster.headlessSvc" (dict "ctx" . "component" "management") }}
   podManagementPolicy: Parallel
+  {{- else if eq (.Values.cluster.mode | default "disabled") "external" }}
+  # External-broker HA: zero-downtime upgrade. management has no PVC
+  # in this mode (chart suppresses it — state lives in Postgres/MySQL),
+  # so the Multi-Attach concern that motivated `Recreate` for single-
+  # instance is not an issue. RollingUpdate with maxUnavailable=0
+  # keeps at least one pod accepting client connections at all times,
+  # which avoids the "client lost both manager AND relay during the
+  # rollout, gave up reconnecting" scenario hit during the
+  # v0.53.1-alpha.25 lab smoke.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   {{- else }}
-  # Recreate by default (overridable via management.strategy). The
+  # Recreate by default for cluster.mode=disabled (single-replica). The
   # management daemon mounts /var/lib/openzro from a PVC, and most
   # storage classes (Longhorn, GP3-RWO, NFS-RWO, anything that isn't
   # explicitly RWX) refuse the second pod's volume attach during a
@@ -29,10 +43,7 @@ spec:
   # while the old one keeps running, the deployment never converges,
   # and the operator has to manually delete the old pod to break
   # the deadlock. Recreate avoids the deadlock entirely; downtime
-  # during an upgrade is ~3-5s on healthy hardware. Multi-replica HA
-  # is configured via `cluster.mode=embedded` (StatefulSet) or
-  # `cluster.mode=external` (this branch with replicaCount>1, broker
-  # external).
+  # during an upgrade is ~3-5s on healthy hardware.
   strategy:
     {{- toYaml .Values.management.strategy | nindent 4 }}
   {{- end }}
