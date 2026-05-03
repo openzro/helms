@@ -255,6 +255,104 @@ expects: user:password@tcp(host:port)/dbname?tls=<mode>&parseTime=true
 {{- end -}}
 
 {{/*
+Renders the lib/pq DSN string for the flow events HOT tier.
+*/}}
+{{- define "openzro.postgres.flowDSN" -}}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.flow }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+{{- end -}}
+
+{{/*
+Renders the lib/pq DSN string for the activity events log.
+*/}}
+{{- define "openzro.postgres.activityDSN" -}}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.activity }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+{{- end -}}
+
+{{/*
+Renders the go-sql-driver/mysql DSN for the flow events HOT tier.
+*/}}
+{{- define "openzro.mysql.flowDSN" -}}
+{{- $u := include "openzro.mysql.managementUser" . -}}
+{{- $p := include "openzro.mysql.managementPassword" . -}}
+{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.flow .Values.mysql.tls -}}
+{{- end -}}
+
+{{/*
+Renders the go-sql-driver/mysql DSN for the activity events log.
+*/}}
+{{- define "openzro.mysql.activityDSN" -}}
+{{- $u := include "openzro.mysql.managementUser" . -}}
+{{- $p := include "openzro.mysql.managementPassword" . -}}
+{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.activity .Values.mysql.tls -}}
+{{- end -}}
+
+{{/*
+Auto-wired environment variables for the management Deployment.
+Renders the env block that selects the right backend for the data,
+flow, and activity stores from postgres.enabled / mysql.enabled.
+
+Operators can still override anything via management.envRaw — Kubernetes
+applies env in order and the LAST entry with a given name wins, so
+envRaw (rendered after this block in management-deployment.yaml) is
+always authoritative.
+*/}}
+{{- define "openzro.management.autoWiredEnv" -}}
+{{- $engine := include "openzro.store.engine" . -}}
+{{- if eq $engine "postgres" }}
+- name: OPENZRO_STORE_ENGINE
+  value: postgres
+- name: OPENZRO_STORE_ENGINE_POSTGRES_DSN
+  value: {{ include "openzro.postgres.managementDSN" . | quote }}
+- name: OPENZRO_FLOW_STORE_ENGINE
+  value: postgres
+- name: OPENZRO_FLOW_STORE_DSN
+  value: {{ include "openzro.postgres.flowDSN" . | quote }}
+- name: OZ_ACTIVITY_EVENT_STORE_ENGINE
+  value: postgres
+- name: OZ_ACTIVITY_EVENT_POSTGRES_DSN
+  value: {{ include "openzro.postgres.activityDSN" . | quote }}
+{{- else if eq $engine "mysql" }}
+- name: OPENZRO_STORE_ENGINE
+  value: mysql
+- name: OPENZRO_STORE_ENGINE_MYSQL_DSN
+  value: {{ include "openzro.mysql.managementDSN" . | quote }}
+- name: OPENZRO_FLOW_STORE_ENGINE
+  value: mysql
+- name: OPENZRO_FLOW_STORE_DSN
+  value: {{ include "openzro.mysql.flowDSN" . | quote }}
+- name: OZ_ACTIVITY_EVENT_STORE_ENGINE
+  value: mysql
+- name: OZ_ACTIVITY_EVENT_MYSQL_DSN
+  value: {{ include "openzro.mysql.activityDSN" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Bootstrap username/password for the provisioning Job. Falls back to
+the runtime credential when the dedicated provisioning credential is
+not provided.
+*/}}
+{{- define "openzro.postgres.bootstrapUser" -}}
+{{- $p := dig "provisioning" "username" "" .Values.postgres -}}
+{{- $p | default .Values.postgres.username -}}
+{{- end -}}
+
+{{- define "openzro.postgres.bootstrapPassword" -}}
+{{- $p := dig "provisioning" "password" "" .Values.postgres -}}
+{{- $p | default .Values.postgres.password -}}
+{{- end -}}
+
+{{- define "openzro.mysql.bootstrapUser" -}}
+{{- $p := dig "provisioning" "username" "" .Values.mysql -}}
+{{- $p | default .Values.mysql.username -}}
+{{- end -}}
+
+{{- define "openzro.mysql.bootstrapPassword" -}}
+{{- $p := dig "provisioning" "password" "" .Values.mysql -}}
+{{- $p | default .Values.mysql.password -}}
+{{- end -}}
+
+{{/*
 Name of the Secret the chart renders for Dex when postgres.enabled
 or mysql.enabled. The Dex subchart consumes it via configSecret.create=false +
 configSecret.name=<this>.

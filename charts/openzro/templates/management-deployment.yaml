@@ -112,6 +112,11 @@ spec:
                   key: wgPrivateKey
                   optional: true
           {{- include "openzro.cluster.env" (dict "ctx" . "component" "management" "replicas" .Values.management.replicaCount) | nindent 12 }}
+          {{- /* Auto-wired DSNs for the 3 SQL stores (data, flow, activity)
+                  when postgres.enabled or mysql.enabled. Operators can still
+                  override via management.envRaw below — K8s applies env in
+                  order and the LAST entry with a given name wins. */}}
+          {{- include "openzro.management.autoWiredEnv" . | nindent 12 }}
           {{- range $key, $val := .Values.management.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
