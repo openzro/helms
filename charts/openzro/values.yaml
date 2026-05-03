@@ -193,16 +193,59 @@ management:
   ##
   enabled: true
 
-  ## @param management.podCommand Define the arguments for the management pod.
+  ## @param management.port Port the management gRPC + HTTP server listens on inside the pod.
+  ##
+  port: 80
+
+  ## @param management.logFile Where the management daemon writes logs (`console` recommended).
+  ##
+  logFile: console
+
+  ## @param management.logLevel Log verbosity (panic | fatal | error | warn | info | debug | trace).
+  ##
+  logLevel: info
+
+  ## @param management.disableAnonymousMetrics Disable anonymous usage metrics. Recommended for production.
+  ##
+  disableAnonymousMetrics: false
+
+  ## @param management.singleAccountModeDomain Email domain that maps every user to a single account.
+  ## Set to your OAuth/Dex email domain (e.g. acme.com) for single-tenant clusters.
+  ## Empty disables single-account mode and forces multi-account login.
+  ##
+  singleAccountModeDomain: openzro.selfhosted
+
+  ## @param management.dnsDomain Mesh DNS zone the openZro client claims authority over on each peer.
+  ##
+  ## ⚠️  CRITICAL — must NOT overlap with the management/dashboard public hostname.
+  ## If `dnsDomain` equals the management FQDN (or is its parent zone), the local DNS
+  ## proxy on every peer will return NXDOMAIN for the management hostname → peers
+  ## cannot reconnect after any blackout, all kernel WireGuard sessions drop with
+  ## "Required key not available". The dashboard validator rejects this at the
+  ## per-account `settings.dns_domain` level too.
+  ##
+  ## Good: `mesh.fuseone.io` (subdomain of your apex), `oz.local`, `openzro.selfhosted`.
+  ## Bad : `openzro.fuseone.io` if that's where management lives.
+  ##
+  dnsDomain: openzro.selfhosted
+
+  ## @param management.extraArgs Additional CLI flags appended to the typed args above.
+  ## Use for flags the chart hasn't promoted yet (e.g. `--metrics-port=9090`).
+  ##
+  extraArgs: []
+
+  ## @param management.podCommand Legacy raw args override.
+  ##
+  ## DEPRECATED. When `args` is non-empty, takes full control of the pod's
+  ## command line and IGNORES the typed `port`/`logLevel`/`dnsDomain`/etc.
+  ## above. Existing deployments that override individual flags via
+  ## `--set management.podCommand.args[N]=…` should migrate to the typed
+  ## fields — overriding by array index is fragile and was the source of
+  ## the v0.53.1-alpha.30 lab incident where a wrong dnsDomain at index 5
+  ## broke peer reconnect cluster-wide.
   ##
   podCommand:
-    args:
-      - --port=80
-      - --log-file=console
-      - --log-level=info
-      - --disable-anonymous-metrics=false
-      - --single-account-mode-domain=openzro.selfhosted
-      - --dns-domain=openzro.selfhosted
+    args: []
 
   ## @param management.configmap Inline JSON management.json.
   ##

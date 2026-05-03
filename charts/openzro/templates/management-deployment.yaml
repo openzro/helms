@@ -73,12 +73,29 @@ spec:
             {{- toYaml .Values.management.securityContext | nindent 12 }}
           image: "{{ .Values.management.image.repository }}:{{ .Values.management.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.management.image.pullPolicy }}
-          {{- if hasKey .Values.management.podCommand "args" }}
           args:
+            {{- /* Legacy override path: when management.podCommand.args is
+                  non-empty, it takes full control of the command line.
+                  Otherwise we render the typed fields (port, logLevel,
+                  dnsDomain, …) so individual overrides via --set are
+                  cirurgical and stable across chart bumps. */ -}}
+            {{- if .Values.management.podCommand.args }}
             {{- range .Values.management.podCommand.args }}
             - {{ . }}
-          {{- end }}
-          {{- end }}
+            {{- end }}
+            {{- else }}
+            - --port={{ .Values.management.port }}
+            - --log-file={{ .Values.management.logFile }}
+            - --log-level={{ .Values.management.logLevel }}
+            - --disable-anonymous-metrics={{ .Values.management.disableAnonymousMetrics }}
+            {{- if .Values.management.singleAccountModeDomain }}
+            - --single-account-mode-domain={{ .Values.management.singleAccountModeDomain }}
+            {{- end }}
+            - --dns-domain={{ .Values.management.dnsDomain }}
+            {{- range .Values.management.extraArgs }}
+            - {{ . }}
+            {{- end }}
+            {{- end }}
           env:
           {{- /* Shared WireGuard identity (ADR-0011) — every replica reads
                  the same key from the bootstrap-generated Secret. Without
