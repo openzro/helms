@@ -46,7 +46,7 @@ fullnameOverride: ""
 ## (pg_dump / mysqldump → import). The chart does NOT migrate data.
 ##
 postgres:
-  ## @param postgres.enabled Use Postgres for management + Dex storage. Set to true for HA / prod.
+  ## @param postgres.enabled Use Postgres for management state, flow events, activity events, and Dex storage. Set to true for HA / prod.
   enabled: false
 
   ## @param postgres.host Postgres hostname or IP.
@@ -58,7 +58,7 @@ postgres:
   ## @param postgres.sslMode Postgres SSL mode (require | verify-ca | verify-full | disable).
   sslMode: require
 
-  ## @param postgres.username Postgres username with access to BOTH databases below.
+  ## @param postgres.username Postgres username with access to ALL FOUR databases below.
   ## Override per-component via `postgres.overrides.<component>.username` if you
   ## prefer separate credentials per service.
   username: openzro
@@ -67,10 +67,31 @@ postgres:
   password: ""
 
   databases:
-    ## @param postgres.databases.management Database for the management daemon.
+    ## @param postgres.databases.management Database for the management daemon (accounts, peers, policies, mdm, flow_exports config).
     management: openzro
+    ## @param postgres.databases.flow Database for the per-packet flow events HOT tier (high write volume, monthly partitions).
+    flow: openzro_flow
+    ## @param postgres.databases.activity Database for the audit / activity events log (low write volume).
+    activity: openzro_activity
     ## @param postgres.databases.dex Database for the Dex IdP.
     dex: dex
+
+  ## Pre-install Job that provisions the four databases on the target
+  ## Postgres before the management Deployment comes up. Idempotent —
+  ## checks pg_database before each CREATE so re-runs are safe.
+  ##
+  ## Disabled by default. Enable when the runtime user has CREATEDB
+  ## privilege OR you provide a separate bootstrap credential below.
+  ## Operators who pre-create the DBs themselves leave this off.
+  provisioning:
+    ## @param postgres.provisioning.enabled Run a pre-install Job that creates the 4 databases listed above.
+    enabled: false
+    ## @param postgres.provisioning.username Optional bootstrap username (must have CREATEDB). Falls back to postgres.username when empty.
+    username: ""
+    ## @param postgres.provisioning.password Optional bootstrap password. Falls back to postgres.password when empty.
+    password: ""
+    ## @param postgres.provisioning.image Image used by the provisioning Job. Defaults to the official Postgres client.
+    image: postgres:16-alpine
 
   ## Per-component credential overrides — uncomment if you want a
   ## dedicated Postgres user for Dex (or any other component).
@@ -81,7 +102,19 @@ postgres:
   #     password: ""
 
 mysql:
-  ## @param mysql.enabled Use MySQL for management + Dex storage. Mutually exclusive with postgres.enabled.
+  ## @param mysql.enabled Use MySQL for management state, flow events, activity events, and Dex storage. Mutually exclusive with postgres.enabled.
+  ##
+  ## ⚠️  PARTITIONING NOTE — neither the flow events nor the activity
+  ## events store can use MySQL native partitioning (it's
+  ## non-declarative `ALTER TABLE … PARTITION BY RANGE` that the GORM
+  ## migration path cannot express). Retention falls back to row-level
+  ## DELETE. At activity-event scale (10³–10⁴ rows/day) that's fine.
+  ## At flow-event scale (10⁶–10⁸ rows/day) DELETE + binlog cost grows
+  ## non-trivially — Postgres is recommended for production. The
+  ## management binary logs a Warn at boot when flow store is on
+  ## MySQL/SQLite. See [docs/adr/0002-flow-events-storage.md] for the
+  ## full trade-off matrix.
+  ##
   enabled: false
 
   ## @param mysql.host MySQL hostname or IP.
@@ -95,7 +128,7 @@ mysql:
   ## server speaks TLS but you don't want to verify the certificate.
   tls: preferred
 
-  ## @param mysql.username MySQL username with access to BOTH databases below.
+  ## @param mysql.username MySQL username with access to ALL FOUR databases below.
   ## Override per-component via `mysql.overrides.<component>.username`.
   username: openzro
 
@@ -103,10 +136,30 @@ mysql:
   password: ""
 
   databases:
-    ## @param mysql.databases.management Database for the management daemon.
+    ## @param mysql.databases.management Database for the management daemon (accounts, peers, policies, mdm, flow_exports config).
     management: openzro
+    ## @param mysql.databases.flow Database for the per-packet flow events HOT tier (high write volume).
+    flow: openzro_flow
+    ## @param mysql.databases.activity Database for the audit / activity events log (low write volume).
+    activity: openzro_activity
     ## @param mysql.databases.dex Database for the Dex IdP.
     dex: dex
+
+  ## Pre-install Job that provisions the four databases on the target
+  ## MySQL before the management Deployment comes up. Idempotent — uses
+  ## `CREATE DATABASE IF NOT EXISTS`.
+  ##
+  ## Disabled by default. Enable when the runtime user has CREATE
+  ## privilege OR you provide a separate bootstrap credential below.
+  provisioning:
+    ## @param mysql.provisioning.enabled Run a pre-install Job that creates the 4 databases listed above.
+    enabled: false
+    ## @param mysql.provisioning.username Optional bootstrap username with CREATE privilege. Falls back to mysql.username when empty.
+    username: ""
+    ## @param mysql.provisioning.password Optional bootstrap password. Falls back to mysql.password when empty.
+    password: ""
+    ## @param mysql.provisioning.image Image used by the provisioning Job. Defaults to the official MySQL client.
+    image: mysql:8.0
 
   ## Per-component credential overrides.
   # overrides:

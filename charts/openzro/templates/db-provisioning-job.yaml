@@ -1,0 +1,128 @@
+{{- /*
+   Pre-install / pre-upgrade hook that creates the four control-plane
+   databases (management, flow, activity, dex) on the configured
+   external DB before the management Deployment comes up. Idempotent —
+   skips DBs that already exist, so re-running on chart upgrades is
+   safe (and necessary when we ship a new DB in a future alpha).
+
+   Off by default. Enable when:
+     - the runtime DB user lacks CREATEDB / CREATE privilege, OR
+     - you want the chart to own DB lifecycle alongside the workloads.
+
+   Operators who provision databases via Terraform / pgAdmin / DBA
+   ticket leave provisioning.enabled=false and the Job is suppressed.
+
+   Why pre-install + pre-upgrade: we want the DBs to exist before the
+   management pod first starts (otherwise it crashes on a missing
+   relation). pre-upgrade re-runs on chart bumps so newly-introduced
+   DBs (a future store split) get auto-created without a manual run.
+*/}}
+{{- $pgEnabled := and .Values.postgres .Values.postgres.enabled .Values.postgres.provisioning.enabled -}}
+{{- $myEnabled := and .Values.mysql .Values.mysql.enabled .Values.mysql.provisioning.enabled -}}
+{{- if or $pgEnabled $myEnabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "openzro.fullname" . }}-db-provision
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-provisioning
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "openzro.common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: db-provisioning
+    spec:
+      restartPolicy: OnFailure
+      {{- if $pgEnabled }}
+      containers:
+        - name: postgres-provision
+          image: {{ .Values.postgres.provisioning.image | quote }}
+          env:
+            - name: PGHOST
+              value: {{ .Values.postgres.host | quote }}
+            - name: PGPORT
+              value: {{ .Values.postgres.port | quote }}
+            - name: PGUSER
+              value: {{ include "openzro.postgres.bootstrapUser" . | quote }}
+            - name: PGPASSWORD
+              value: {{ include "openzro.postgres.bootstrapPassword" . | quote }}
+            - name: PGSSLMODE
+              value: {{ .Values.postgres.sslMode | quote }}
+            - name: RUNTIME_USER
+              value: {{ .Values.postgres.username | quote }}
+            - name: DB_LIST
+              value: {{ printf "%s %s %s %s" .Values.postgres.databases.management .Values.postgres.databases.flow .Values.postgres.databases.activity .Values.postgres.databases.dex | quote }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              # Postgres has no CREATE DATABASE IF NOT EXISTS — query
+              # pg_database first, only issue CREATE if absent. -tAc
+              # gives untouched output we can grep cleanly. Connect to
+              # the `postgres` admin DB, not the target DBs themselves
+              # (they may not exist yet).
+              for db in $DB_LIST; do
+                exists=$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$db'")
+                if [ "$exists" = "1" ]; then
+                  echo "✓ database $db already exists, skipping"
+                  continue
+                fi
+                echo "→ creating database $db"
+                psql -d postgres -c "CREATE DATABASE \"$db\""
+
+                # If the bootstrap user is different from the runtime
+                # user, hand ownership over so the runtime user can
+                # AutoMigrate without GRANT ceremony.
+                if [ "$PGUSER" != "$RUNTIME_USER" ]; then
+                  echo "→ granting ownership of $db to $RUNTIME_USER"
+                  psql -d postgres -c "ALTER DATABASE \"$db\" OWNER TO \"$RUNTIME_USER\""
+                fi
+              done
+              echo "✓ postgres provisioning complete"
+      {{- else if $myEnabled }}
+      containers:
+        - name: mysql-provision
+          image: {{ .Values.mysql.provisioning.image | quote }}
+          env:
+            - name: MYSQL_HOST
+              value: {{ .Values.mysql.host | quote }}
+            - name: MYSQL_PORT
+              value: {{ .Values.mysql.port | quote }}
+            - name: MYSQL_USER
+              value: {{ include "openzro.mysql.bootstrapUser" . | quote }}
+            - name: MYSQL_PWD
+              value: {{ include "openzro.mysql.bootstrapPassword" . | quote }}
+            - name: RUNTIME_USER
+              value: {{ .Values.mysql.username | quote }}
+            - name: DB_LIST
+              value: {{ printf "%s %s %s %s" .Values.mysql.databases.management .Values.mysql.databases.flow .Values.mysql.databases.activity .Values.mysql.databases.dex | quote }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              # MySQL supports CREATE DATABASE IF NOT EXISTS natively,
+              # so the loop is simpler. After CREATE we GRANT the
+              # runtime user explicitly when bootstrap != runtime — fresh
+              # DBs don't inherit privileges automatically.
+              MYSQL="mysql -h $MYSQL_HOST -P $MYSQL_PORT -u $MYSQL_USER --skip-ssl-verify-server-cert"
+              for db in $DB_LIST; do
+                echo "→ ensuring database $db"
+                $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`$db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                if [ "$MYSQL_USER" != "$RUNTIME_USER" ]; then
+                  echo "→ granting privileges on $db to $RUNTIME_USER"
+                  $MYSQL -e "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$RUNTIME_USER'@'%'"
+                fi
+              done
+              if [ "$MYSQL_USER" != "$RUNTIME_USER" ]; then
+                $MYSQL -e "FLUSH PRIVILEGES"
+              fi
+              echo "✓ mysql provisioning complete"
+      {{- end }}
+{{- end }}
