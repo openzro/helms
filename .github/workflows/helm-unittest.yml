@@ -42,7 +42,7 @@ jobs:
 
       - name: Install helm-unittest plugin
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest --version v0.8.1
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version v0.8.1 --verify=false
 
       - name: Run unit tests
         run: helm unittest charts/openzro --output-type JUnit --output-file test-results.xml
