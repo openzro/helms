@@ -5,6 +5,10 @@ kind: Deployment
 metadata:
   name: {{ include "openzro.fullname" . }}-dashboard
   namespace: {{ include "openzro.namespace" . }}
+  {{- with .Values.dashboard.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "openzro.dashboard.labels" . | nindent 4 }}
 spec:
@@ -26,6 +30,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "openzro.dashboard.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.dashboard.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.dashboard.podSecurityContext | nindent 8 }}
       containers:
@@ -76,6 +81,12 @@ spec:
           {{- if .Values.dashboard.readinessProbe }}
             {{- with .Values.dashboard.readinessProbe }}
           readinessProbe:
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.dashboard.startupProbe }}
+            {{- with .Values.dashboard.startupProbe }}
+          startupProbe:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}

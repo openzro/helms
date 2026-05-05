@@ -5,6 +5,10 @@ kind: {{ $kind }}
 metadata:
   name: {{ include "openzro.fullname" . }}-signal
   namespace: {{ include "openzro.namespace" . }}
+  {{- with .Values.signal.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "openzro.signal.labels" . | nindent 4 }}
 spec:
@@ -30,6 +34,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "openzro.signal.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.signal.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.signal.podSecurityContext | nindent 8 }}
       containers:
@@ -71,6 +76,12 @@ spec:
           {{- if .Values.signal.readinessProbe }}
             {{- with .Values.signal.readinessProbe }}
           readinessProbe:
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.signal.startupProbe }}
+            {{- with .Values.signal.startupProbe }}
+          startupProbe:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}

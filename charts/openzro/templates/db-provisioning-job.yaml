@@ -34,6 +34,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 300
   template:
     metadata:
@@ -42,10 +43,18 @@ spec:
         app.kubernetes.io/component: db-provisioning
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
       {{- if $pgEnabled }}
       containers:
         - name: postgres-provision
           image: {{ .Values.postgres.provisioning.image | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: PGHOST
               value: {{ .Values.postgres.host | quote }}
@@ -91,6 +100,13 @@ spec:
       containers:
         - name: mysql-provision
           image: {{ .Values.mysql.provisioning.image | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: MYSQL_HOST
               value: {{ .Values.mysql.host | quote }}

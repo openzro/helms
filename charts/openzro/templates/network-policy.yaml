@@ -1,0 +1,113 @@
+{{- if .Values.networkPolicy.enabled -}}
+{{- /*
+  NetworkPolicy resources — one per component.
+
+  Traffic model:
+    management  ← dashboard (HTTP 80), signal (gRPC 33073), relay (HMAC auth), ingress controller
+    signal      ← management, clients (gRPC 80), ingress controller
+    relay       ← management, peers (TCP 33080), relay peers (TCP 7090 cluster fabric)
+    dashboard   ← ingress controller (HTTP 80)
+    dex         ← management, dashboard, ingress controller (HTTP 5556)
+
+  Egress is unrestricted for all components (DNS, DB, OIDC discovery, etc.).
+  Operators with stricter requirements can disable this template
+  (networkPolicy.enabled: false) and manage policies out-of-band.
+*/ -}}
+
+---
+{{- if .Values.management.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openzro.fullname" . }}-management
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openzro.management.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.management.containerPort }}
+          protocol: TCP
+        - port: {{ .Values.management.grpcContainerPort }}
+          protocol: TCP
+        - port: {{ .Values.management.metrics.port }}
+          protocol: TCP
+{{- end }}
+
+---
+{{- if .Values.signal.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openzro.fullname" . }}-signal
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.signal.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openzro.signal.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.signal.containerPort }}
+          protocol: TCP
+        - port: {{ .Values.signal.metrics.port }}
+          protocol: TCP
+{{- end }}
+
+---
+{{- if .Values.relay.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openzro.fullname" . }}-relay
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.relay.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openzro.relay.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.relay.containerPort }}
+          protocol: TCP
+        - port: {{ .Values.relay.metrics.port }}
+          protocol: TCP
+        {{- if include "openzro.relay.cluster.enabled" . }}
+        - port: {{ .Values.relay.cluster.port }}
+          protocol: TCP
+        {{- end }}
+{{- end }}
+
+---
+{{- if .Values.dashboard.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openzro.fullname" . }}-dashboard
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.dashboard.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openzro.dashboard.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.dashboard.containerPort }}
+          protocol: TCP
+{{- end }}
+
+{{- end -}}

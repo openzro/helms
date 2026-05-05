@@ -84,6 +84,9 @@ Common dashboard labels
 {{- define "openzro.dashboard.labels" -}}
 helm.sh/chart: {{ include "openzro.chart" . }}
 {{ include "openzro.dashboard.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 

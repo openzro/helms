@@ -5,6 +5,10 @@ kind: Deployment
 metadata:
   name: {{ include "openzro.fullname" . }}-relay
   namespace: {{ include "openzro.namespace" . }}
+  {{- with .Values.relay.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "openzro.relay.labels" . | nindent 4 }}
 spec:
@@ -26,6 +30,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "openzro.relay.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.relay.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.relay.podSecurityContext | nindent 8 }}
       containers:
@@ -55,6 +60,12 @@ spec:
           {{- if .Values.relay.readinessProbe }}
             {{- with .Values.relay.readinessProbe }}
           readinessProbe:
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.relay.startupProbe }}
+            {{- with .Values.relay.startupProbe }}
+          startupProbe:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
