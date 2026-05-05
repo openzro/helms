@@ -13,10 +13,12 @@ on:
   pull_request:
     paths:
       - 'charts/openzro/**'
+      - '.github/workflows/helm-unittest.yml'
   push:
     branches: [main]
     paths:
       - 'charts/openzro/**'
+      - '.github/workflows/helm-unittest.yml'
   workflow_dispatch:
 
 jobs:
