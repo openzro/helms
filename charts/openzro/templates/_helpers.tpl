@@ -328,6 +328,34 @@ always authoritative.
 {{- end -}}
 
 {{/*
+MaxMind GeoLite2 license key wiring. Empty in three-line config →
+no env emitted (management binary uses the openZro mirror as
+default). When .Values.management.geoLite.licenseKey.value is set,
+chart-managed Secret feeds OZ_MAXMIND_LICENSE_KEY. When
+existingSecret is set, points at the operator's own Secret.
+
+Usage in management-deployment.yaml:
+  {{- include "openzro.management.maxmindEnv" . | nindent 12 }}
+*/}}
+{{- define "openzro.management.maxmindEnv" -}}
+{{- $g := .Values.management.geoLite | default dict -}}
+{{- $lk := $g.licenseKey | default dict -}}
+{{- if $lk.existingSecret }}
+- name: OZ_MAXMIND_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $lk.existingSecret | quote }}
+      key: {{ $lk.existingSecretKey | default "licenseKey" | quote }}
+{{- else if $lk.value }}
+- name: OZ_MAXMIND_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ printf "%s-management-maxmind" (include "openzro.fullname" .) | quote }}
+      key: licenseKey
+{{- end -}}
+{{- end -}}
+
+{{/*
 Bootstrap username/password for the provisioning Job. Falls back to
 the runtime credential when the dedicated provisioning credential is
 not provided.
