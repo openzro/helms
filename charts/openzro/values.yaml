@@ -19,7 +19,7 @@ global:
 ##   management HTTP  → management.ingress  (path rewrite conflicts with Dex)
 ##   management gRPC  → management.ingressGrpc
 ##   signal           → signal.ingress
-##   relay            → relay.ingress
+##   relay            → relay.service.type: LoadBalancer  (TCP; Ingress is not supported)
 ##
 ingress:
   ## @param ingress.enabled Enable the consolidated dashboard+Dex Ingress.
@@ -415,7 +415,7 @@ management:
   ## auto-derived from other chart values when a derivation rule exists:
   ##
   ##   signal.uri              ← management.ingress.hosts[0].host + ":443"
-  ##   relay.addresses         ← "rel://" + relay.ingress.hosts[0].host + ":<relay port>"
+  ##   relay.addresses         ← "rel://" + relay.publicHostname + ":<relay port>"
   ##   httpConfig.authIssuer   ← dex.config.issuer (or "<mgmt-host>/dex")
   ##   httpConfig.oidcConfigEndpoint ← authIssuer + "/.well-known/openid-configuration"
   ##   pkce/device domain      ← management.ingress.hosts[0].host
@@ -445,7 +445,7 @@ management:
 
     relay:
       ## @param management.config.relay.addresses Public relay addresses (rel:// URLs).
-      ## Auto-derived from relay.ingress.hosts[0].host when empty.
+      ## Auto-derived from relay.publicHostname when empty.
       addresses: []
       ## @param management.config.relay.credentialsTTL TTL for relay session credentials.
       credentialsTTL: "24h"
@@ -1216,12 +1216,24 @@ relay:
       ## @param relay.cluster.authSecret.existingSecretKey Key inside existingSecret. Defaults to "authSecret".
       existingSecretKey: ""
 
+  ## @param relay.publicHostname Public hostname (or IP) used to build the rel:// address
+  ## advertised to peers via the management daemon config.
+  ## Example: relay.example.com
+  ## When empty and management.config.relay.addresses is also empty, no relay address
+  ## is injected — set this or management.config.relay.addresses explicitly.
+  ##
+  publicHostname: ""
+
   service:
     ## @param relay.service.type Service type for the relay component.
+    ## The relay uses a persistent TCP (WebSocket) connection — Ingress is NOT supported.
+    ## Use LoadBalancer (cloud) or NodePort (bare-metal) to expose port relay.service.port
+    ## directly. ClusterIP is the default; change to LoadBalancer for production.
     ##
     type: ClusterIP
 
-    ## @param relay.service.port Port for the relay service.
+    ## @param relay.service.port Port for the relay component (TCP). Exposed publicly
+    ## when service.type is LoadBalancer or NodePort. Must match the port in rel:// addresses.
     ##
     port: 33080
 
@@ -1236,35 +1248,6 @@ relay:
     ## @param relay.service.annotations Annotations for the relay service.
     ##
     annotations: {}
-
-  ingress:
-    ## @param relay.ingress.enabled Enable or disable ingress for the relay component.
-    ##
-    enabled: false
-
-    ## @param relay.ingress.className Ingress class name for the relay component.
-    ##
-    className: ""
-
-    ## @param relay.ingress.annotations Annotations for the relay ingress resource.
-    ##
-    annotations: {}
-
-    hosts:
-      ## @param relay.ingress.hosts[0].host Host for the relay ingress.
-      ##
-      - host: example.com
-        paths:
-          ## @param relay.ingress.hosts[0].paths[0].path Path for the relay ingress.
-          ##
-          - path: /relay
-            ## @param relay.ingress.hosts[0].paths[0].pathType Path type for the relay ingress.
-            ##
-            pathType: ImplementationSpecific
-
-    ## @param relay.ingress.tls TLS settings for the relay ingress.
-    ##
-    tls: []
 
   ## @param relay.resources Resource requests and limits for the relay pod.
   ##
