@@ -112,6 +112,12 @@ spec:
                   key: wgPrivateKey
                   optional: true
           {{- include "openzro.cluster.env" (dict "ctx" . "component" "management" "replicas" .Values.management.replicaCount) | nindent 12 }}
+          {{- /* MaxMind license key — opt-in. When set, management
+                 fetches GeoLite2 directly from download.maxmind.com
+                 instead of pkg.openzro.io. Three sources in order:
+                 inline value (chart-managed Secret), existing
+                 Secret reference, or unset (use openZro mirror). */}}
+          {{- include "openzro.management.maxmindEnv" . | nindent 12 }}
           {{- /* Auto-wired DSNs for the 3 SQL stores (data, flow, activity)
                   when postgres.enabled or mysql.enabled. Operators can still
                   override via management.envRaw below — K8s applies env in

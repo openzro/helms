@@ -287,6 +287,29 @@ management:
   ##
   extraArgs: []
 
+  ## GeoLite2 / MaxMind geolocation database. The management binary
+  ## auto-fetches GeoLite2 on cold boot so the country / city posture-
+  ## check dropdowns populate without operator action. Default source
+  ## is the openZro mirror at pkg.openzro.io; operators who prefer
+  ## fetching directly from MaxMind set a license key (free at
+  ## https://www.maxmind.com/en/geolite2/signup).
+  ##
+  geoLite:
+    licenseKey:
+      ## @param management.geoLite.licenseKey.value MaxMind license key as a literal.
+      ## Stored in a chart-managed Secret and mounted as
+      ## OZ_MAXMIND_LICENSE_KEY. Use SealedSecrets/sops upstream of
+      ## the values file in production.
+      value: ""
+
+      ## @param management.geoLite.licenseKey.existingSecret Pre-existing Secret name.
+      ## Skips the chart-managed Secret entirely; pair with
+      ## existingSecretKey to override the default key name.
+      existingSecret: ""
+
+      ## @param management.geoLite.licenseKey.existingSecretKey Key inside existingSecret. Defaults to "licenseKey".
+      existingSecretKey: ""
+
   ## @param management.podCommand Legacy raw args override.
   ##
   ## DEPRECATED. When `args` is non-empty, takes full control of the pod's
