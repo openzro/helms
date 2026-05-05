@@ -323,98 +323,141 @@ management:
   podCommand:
     args: []
 
-  ## @param management.configmap Inline JSON management.json.
+  ## @section Management daemon config (management.json)
   ##
-  ## REQUIRED OVERRIDES per deployment:
-  ##   - DataStoreEncryptionKey  — generate with:
-  ##       head -c 32 /dev/urandom | base64
-  ##   - HttpConfig.AuthIssuer / OIDCConfigEndpoint — point at your
-  ##     Dex hostname (e.g. https://dex.<domain>)
-  ##   - Signal.URI — your dashboard hostname over HTTPS
-  ##   - Relay.Addresses — your relay LoadBalancer's public hostname
-  ##   - Relay.Secret — share with relay's OZ_AUTH_SECRET env var
+  ## These values render into /etc/openzro/management.json inside the
+  ## management pod. Fields left empty ("") or as empty lists ([]) are
+  ## auto-derived from other chart values when a derivation rule exists:
   ##
-  ## STORAGE WARNING — `StoreConfig.Engine: sqlite` is convenient for
-  ## single-replica labs but inappropriate for production:
-  ##   - SQLite + RWO PVC = 1 management replica MAX (no HA)
-  ##   - Backup/restore is harder than postgres pg_dump
-  ##   - For prod, switch to:
-  ##       "StoreConfig": { "Engine": "postgres" }
-  ##     and set OPENZRO_STORE_ENGINE_POSTGRES_DSN via management.envRaw.
+  ##   signal.uri              ← management.ingress.hosts[0].host + ":443"
+  ##   relay.addresses         ← "rel://" + relay.ingress.hosts[0].host + ":<relay port>"
+  ##   httpConfig.authIssuer   ← dex.config.issuer (or "<mgmt-host>/dex")
+  ##   httpConfig.oidcConfigEndpoint ← authIssuer + "/.well-known/openid-configuration"
+  ##   pkce/device domain      ← management.ingress.hosts[0].host
+  ##   pkce/device endpoints   ← authIssuer + "/auth" | "/token" | "/device/code"
   ##
-  ## The defaults below match the layout the openzro/openzro lab uses
-  ## (single host openzro.example.com, dex on dex.<domain>, relay on
-  ## relay.<domain>). See docs/operator/k8s-deployment-guide.md for
-  ## the per-field reference.
-  configmap: |
-    {
-        "Stuns": [],
-        "TURNConfig": {
-            "Turns": [],
-            "TimeBasedCredentials": false,
-            "CredentialsTTL": "12h",
-            "Secret": "not-used"
-        },
-        "Relay": {
-            "Addresses": ["rel://relay.openzro.example.com:33080"],
-            "CredentialsTTL": "24h",
-            "Secret": "REPLACE_WITH_RELAY_OZ_AUTH_SECRET"
-        },
-        "Signal": {
-            "Proto": "https",
-            "URI": "openzro.example.com:443"
-        },
-        "ReverseProxy": {
-            "TrustedHTTPProxies": [],
-            "TrustedHTTPProxiesCount": 0,
-            "TrustedPeers": ["0.0.0.0/0"]
-        },
-        "DisableDefaultPolicy": false,
-        "DataStoreEncryptionKey": "REPLACE_WITH_BASE64_32_BYTES",
-        "StoreConfig": {
-            "Engine": "sqlite"
-        },
-        "HttpConfig": {
-            "Address": "0.0.0.0:33071",
-            "AuthIssuer": "https://openzro.example.com/dex",
-            "AuthAudience": "openzro-dashboard",
-            "AuthUserIDClaim": "sub",
-            "OIDCConfigEndpoint": "https://openzro.example.com/dex/.well-known/openid-configuration",
-            "IdpSignKeyRefreshEnabled": true
-        },
-        "IdpManagerConfig": {
-            "ManagerType": "none"
-        },
-        "PKCEAuthorizationFlow": {
-            "ProviderConfig": {
-                "Audience": "openzro-dashboard",
-                "ClientID": "openzro-dashboard",
-                "ClientSecret": "",
-                "Domain": "openzro.example.com",
-                "AuthorizationEndpoint": "https://openzro.example.com/dex/auth",
-                "TokenEndpoint": "https://openzro.example.com/dex/token",
-                "Scope": "openid profile email offline_access",
-                "RedirectURLs": [
-                    "http://localhost:53000/",
-                    "http://localhost:54000/",
-                    "http://localhost:55000/"
-                ],
-                "UseIDToken": false
-            }
-        },
-        "DeviceAuthorizationFlow": {
-            "Provider": "hosted",
-            "ProviderConfig": {
-                "Audience": "openzro-dashboard",
-                "ClientID": "openzro-dashboard",
-                "Domain": "openzro.example.com",
-                "TokenEndpoint": "https://openzro.example.com/dex/token",
-                "DeviceAuthEndpoint": "https://openzro.example.com/dex/device/code",
-                "Scope": "openid profile email offline_access",
-                "UseIDToken": false
-            }
-        }
-    }
+  ## STORAGE: StoreConfig.Engine is always overridden from postgres.enabled /
+  ## mysql.enabled — no need to touch it here.
+  ##
+  config:
+    ## @param management.config.dataStoreEncryptionKey AES-256 encryption key for the data store (base64, 32 bytes raw).
+    ## Generate: head -c 32 /dev/urandom | base64
+    ## REQUIRED — the management daemon refuses to start without a valid key.
+    dataStoreEncryptionKey: ""
+
+    ## @param management.config.stuns List of STUN server URLs.
+    stuns: []
+
+    turnConfig:
+      ## @param management.config.turnConfig.turns List of TURN server entries.
+      turns: []
+      ## @param management.config.turnConfig.timeBasedCredentials Use time-based TURN credentials.
+      timeBasedCredentials: false
+      ## @param management.config.turnConfig.credentialsTTL TTL for TURN credentials.
+      credentialsTTL: "12h"
+      ## @param management.config.turnConfig.secret Shared secret for TURN.
+      secret: "not-used"
+
+    relay:
+      ## @param management.config.relay.addresses Public relay addresses (rel:// URLs).
+      ## Auto-derived from relay.ingress.hosts[0].host when empty.
+      addresses: []
+      ## @param management.config.relay.credentialsTTL TTL for relay session credentials.
+      credentialsTTL: "24h"
+      ## @param management.config.relay.secret Shared HMAC secret.
+      ## REQUIRED — must match OZ_AUTH_SECRET on the relay pods.
+      secret: ""
+
+    signal:
+      ## @param management.config.signal.proto Signal server protocol.
+      proto: https
+      ## @param management.config.signal.uri Signal server public URI (host:port).
+      ## Auto-derived from management.ingress.hosts[0].host when empty.
+      uri: ""
+
+    reverseProxy:
+      ## @param management.config.reverseProxy.trustedHTTPProxies List of trusted HTTP proxy IPs.
+      trustedHTTPProxies: []
+      ## @param management.config.reverseProxy.trustedHTTPProxiesCount Number of trusted proxies to consume from X-Forwarded-For.
+      trustedHTTPProxiesCount: 0
+      ## @param management.config.reverseProxy.trustedPeers WireGuard peer CIDRs trusted as reverse proxies.
+      trustedPeers:
+        - "0.0.0.0/0"
+
+    ## @param management.config.disableDefaultPolicy Disable the built-in allow-all default policy.
+    disableDefaultPolicy: false
+
+    httpConfig:
+      ## @param management.config.httpConfig.address Internal HTTP listen address.
+      address: "0.0.0.0:33071"
+      ## @param management.config.httpConfig.authIssuer OIDC issuer URL.
+      ## Auto-derived from dex.config.issuer (or "<mgmt-host>/dex") when empty.
+      authIssuer: ""
+      ## @param management.config.httpConfig.authAudience OIDC audience (client_id).
+      authAudience: "openzro-dashboard"
+      ## @param management.config.httpConfig.authUserIDClaim JWT claim used as the user ID.
+      authUserIDClaim: "sub"
+      ## @param management.config.httpConfig.oidcConfigEndpoint OIDC well-known discovery endpoint.
+      ## Auto-derived from authIssuer when empty.
+      oidcConfigEndpoint: ""
+      ## @param management.config.httpConfig.idpSignKeyRefreshEnabled Refresh IdP signing keys automatically.
+      idpSignKeyRefreshEnabled: true
+
+    idpManagerConfig:
+      ## @param management.config.idpManagerConfig.managerType IdP manager type (none | google | azure | okta | ...).
+      managerType: "none"
+
+    pkceAuthorizationFlow:
+      providerConfig:
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.audience PKCE audience (must match authAudience).
+        audience: "openzro-dashboard"
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.clientId PKCE client ID.
+        clientId: "openzro-dashboard"
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.clientSecret PKCE client secret (empty for public clients).
+        clientSecret: ""
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.domain Public management domain.
+        ## Auto-derived from management.ingress.hosts[0].host when empty.
+        domain: ""
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.authorizationEndpoint OIDC authorization endpoint.
+        ## Auto-derived from authIssuer + "/auth" when empty.
+        authorizationEndpoint: ""
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.tokenEndpoint OIDC token endpoint.
+        ## Auto-derived from authIssuer + "/token" when empty.
+        tokenEndpoint: ""
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.scope OIDC scopes to request.
+        scope: "openid profile email offline_access"
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.redirectURLs Allowed redirect URLs. CLI loopback ports are included by default.
+        redirectURLs:
+          - "http://localhost:53000/"
+          - "http://localhost:54000/"
+          - "http://localhost:55000/"
+        ## @param management.config.pkceAuthorizationFlow.providerConfig.useIDToken Use the ID token instead of the access token.
+        useIDToken: false
+
+    deviceAuthorizationFlow:
+      ## @param management.config.deviceAuthorizationFlow.provider Device flow provider type.
+      provider: "hosted"
+      providerConfig:
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.audience Device flow audience.
+        audience: "openzro-dashboard"
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.clientId Device flow client ID.
+        clientId: "openzro-dashboard"
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.domain Public management domain (auto-derived).
+        domain: ""
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.tokenEndpoint Token endpoint (auto-derived from pkce tokenEndpoint).
+        tokenEndpoint: ""
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.deviceAuthEndpoint Device authorization endpoint (auto-derived from authIssuer).
+        deviceAuthEndpoint: ""
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.scope OIDC scopes to request.
+        scope: "openid profile email offline_access"
+        ## @param management.config.deviceAuthorizationFlow.providerConfig.useIDToken Use the ID token instead of the access token.
+        useIDToken: false
+
+  ## @param management.configmap [deprecated] Raw JSON escape hatch for management.json.
+  ## When non-empty, this JSON string is used directly and management.config.* above is ignored.
+  ## Only StoreConfig.Engine is still patched from postgres.enabled / mysql.enabled.
+  ## Use only for fields not yet exposed as typed values. Prefer management.config.*.
+  configmap: ""
 
   lifecycle: {} # Define lifecycle hooks (preStop, postStart) if needed.
 

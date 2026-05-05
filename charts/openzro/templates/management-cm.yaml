@@ -1,22 +1,186 @@
 {{- if .Values.management.enabled -}}
 {{- /*
-   When postgres.enabled or mysql.enabled, override the StoreConfig
-   section of the operator-supplied management.json so the engine
-   matches the top-level db block. The operator's raw configmap
-   stays the source for everything else (Signal/Relay/HttpConfig/etc.)
-   — we only swap the storage stanza so flipping engines on/off
-   doesn't require duplicating connection details in two places.
+  Renders /etc/openzro/management.json inside the management pod.
 
-   The DSN itself is NOT rendered into the configmap (which is
-   plaintext). The management daemon reads it from
-   OPENZRO_STORE_ENGINE_<engine>_DSN, which the operator must set
-   via management.envFromSecret pointing at a Secret they manage.
+  Two rendering paths:
+
+  1. Structured (default): builds JSON from management.config.* YAML values.
+     Fields left empty ("") or as empty lists are auto-derived:
+       signal.uri              ← management.ingress.hosts[0].host + ":443"
+       relay.addresses         ← "rel://" + relay.ingress.hosts[0].host + ":<port>"
+       httpConfig.authIssuer   ← dex.config.issuer (or "<mgmt-host>/dex")
+       httpConfig.oidcConfigEndpoint ← authIssuer + "/.well-known/openid-configuration"
+       pkce/device domain      ← management.ingress.hosts[0].host
+       pkce/device endpoints   ← authIssuer + "/auth" | "/token" | "/device/code"
+
+  2. Legacy escape hatch: when management.configmap is non-empty, that raw
+     JSON string is parsed and used directly. Only StoreConfig.Engine is
+     still patched from the top-level postgres / mysql block.
+
+  StoreConfig.Engine is always overridden last from the top-level db block
+  regardless of the rendering path, so flipping postgres.enabled / mysql.enabled
+  never requires touching management.config.*.
 */ -}}
 {{- $engine := include "openzro.store.engine" . -}}
-{{- $cfg := .Values.management.configmap | fromJson -}}
+
+{{- /*
+  ── Host resolution ─────────────────────────────────────────────────────
+  mgmtHost : public management/dashboard FQDN (no scheme, no port).
+  dexIssuer: full OIDC issuer URL  (e.g. https://host/dex).
+  relayHost : public relay FQDN.
+*/ -}}
+{{- $mgmtHost := "" -}}
+{{- if and .Values.management.ingress.hosts (gt (len .Values.management.ingress.hosts) 0) -}}
+  {{- $mgmtHost = (index .Values.management.ingress.hosts 0).host -}}
+{{- end -}}
+{{- if and (not $mgmtHost) .Values.gatewayApi -}}
+  {{- if .Values.gatewayApi.hostname -}}
+    {{- $mgmtHost = .Values.gatewayApi.hostname -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $dexIssuer := "" -}}
+{{- if and .Values.dex .Values.dex.config .Values.dex.config.issuer -}}
+  {{- $dexIssuer = .Values.dex.config.issuer -}}
+{{- end -}}
+{{- if and (not $dexIssuer) $mgmtHost -}}
+  {{- $dexIssuer = printf "https://%s/dex" $mgmtHost -}}
+{{- end -}}
+
+{{- $relayHost := "" -}}
+{{- if and .Values.relay.ingress.hosts (gt (len .Values.relay.ingress.hosts) 0) -}}
+  {{- $relayHost = (index .Values.relay.ingress.hosts 0).host -}}
+{{- end -}}
+
+{{- $cfg := dict -}}
+
+{{- if .Values.management.configmap -}}
+{{- /* ── Legacy path ─────────────────────────────────────────────────── */ -}}
+  {{- $cfg = .Values.management.configmap | fromJson -}}
+
+{{- else -}}
+{{- /* ── Structured path ──────────────────────────────────────────────── */ -}}
+  {{- $c := .Values.management.config -}}
+
+  {{- /* Signal.URI */ -}}
+  {{- $signalURI := $c.signal.uri -}}
+  {{- if and (not $signalURI) $mgmtHost -}}
+    {{- $signalURI = printf "%s:443" $mgmtHost -}}
+  {{- end -}}
+
+  {{- /* HttpConfig.AuthIssuer */ -}}
+  {{- $authIssuer := $c.httpConfig.authIssuer -}}
+  {{- if not $authIssuer -}}
+    {{- $authIssuer = $dexIssuer -}}
+  {{- end -}}
+
+  {{- /* HttpConfig.OIDCConfigEndpoint */ -}}
+  {{- $oidcEndpoint := $c.httpConfig.oidcConfigEndpoint -}}
+  {{- if and (not $oidcEndpoint) $authIssuer -}}
+    {{- $oidcEndpoint = printf "%s/.well-known/openid-configuration" $authIssuer -}}
+  {{- end -}}
+
+  {{- /* Shared domain for PKCE + Device flows */ -}}
+  {{- $domain := $c.pkceAuthorizationFlow.providerConfig.domain -}}
+  {{- if not $domain -}}
+    {{- $domain = $mgmtHost -}}
+  {{- end -}}
+
+  {{- /* PKCE authorization + token endpoints */ -}}
+  {{- $authzEndpoint := $c.pkceAuthorizationFlow.providerConfig.authorizationEndpoint -}}
+  {{- if and (not $authzEndpoint) $authIssuer -}}
+    {{- $authzEndpoint = printf "%s/auth" $authIssuer -}}
+  {{- end -}}
+
+  {{- $tokenEndpoint := $c.pkceAuthorizationFlow.providerConfig.tokenEndpoint -}}
+  {{- if and (not $tokenEndpoint) $authIssuer -}}
+    {{- $tokenEndpoint = printf "%s/token" $authIssuer -}}
+  {{- end -}}
+
+  {{- /* Device flow endpoints (fall back to PKCE token endpoint) */ -}}
+  {{- $deviceTokenEndpoint := $c.deviceAuthorizationFlow.providerConfig.tokenEndpoint -}}
+  {{- if not $deviceTokenEndpoint -}}
+    {{- $deviceTokenEndpoint = $tokenEndpoint -}}
+  {{- end -}}
+
+  {{- $deviceAuthEndpoint := $c.deviceAuthorizationFlow.providerConfig.deviceAuthEndpoint -}}
+  {{- if and (not $deviceAuthEndpoint) $authIssuer -}}
+    {{- $deviceAuthEndpoint = printf "%s/device/code" $authIssuer -}}
+  {{- end -}}
+
+  {{- /* Relay.Addresses */ -}}
+  {{- $relayAddresses := $c.relay.addresses -}}
+  {{- if and (not $relayAddresses) $relayHost -}}
+    {{- $relayAddresses = list (printf "rel://%s:%d" $relayHost (.Values.relay.service.port | int)) -}}
+  {{- end -}}
+
+  {{- $cfg = dict
+    "Stuns" $c.stuns
+    "TURNConfig" (dict
+      "Turns"                  $c.turnConfig.turns
+      "TimeBasedCredentials"   $c.turnConfig.timeBasedCredentials
+      "CredentialsTTL"         $c.turnConfig.credentialsTTL
+      "Secret"                 $c.turnConfig.secret
+    )
+    "Relay" (dict
+      "Addresses"      $relayAddresses
+      "CredentialsTTL" $c.relay.credentialsTTL
+      "Secret"         $c.relay.secret
+    )
+    "Signal" (dict
+      "Proto" $c.signal.proto
+      "URI"   $signalURI
+    )
+    "ReverseProxy" (dict
+      "TrustedHTTPProxies"      $c.reverseProxy.trustedHTTPProxies
+      "TrustedHTTPProxiesCount" $c.reverseProxy.trustedHTTPProxiesCount
+      "TrustedPeers"            $c.reverseProxy.trustedPeers
+    )
+    "DisableDefaultPolicy"  $c.disableDefaultPolicy
+    "DataStoreEncryptionKey" $c.dataStoreEncryptionKey
+    "StoreConfig" (dict "Engine" "sqlite")
+    "HttpConfig" (dict
+      "Address"                $c.httpConfig.address
+      "AuthIssuer"             $authIssuer
+      "AuthAudience"           $c.httpConfig.authAudience
+      "AuthUserIDClaim"        $c.httpConfig.authUserIDClaim
+      "OIDCConfigEndpoint"     $oidcEndpoint
+      "IdpSignKeyRefreshEnabled" $c.httpConfig.idpSignKeyRefreshEnabled
+    )
+    "IdpManagerConfig" (dict "ManagerType" $c.idpManagerConfig.managerType)
+    "PKCEAuthorizationFlow" (dict
+      "ProviderConfig" (dict
+        "Audience"              $c.pkceAuthorizationFlow.providerConfig.audience
+        "ClientID"              $c.pkceAuthorizationFlow.providerConfig.clientId
+        "ClientSecret"          $c.pkceAuthorizationFlow.providerConfig.clientSecret
+        "Domain"                $domain
+        "AuthorizationEndpoint" $authzEndpoint
+        "TokenEndpoint"         $tokenEndpoint
+        "Scope"                 $c.pkceAuthorizationFlow.providerConfig.scope
+        "RedirectURLs"          $c.pkceAuthorizationFlow.providerConfig.redirectURLs
+        "UseIDToken"            $c.pkceAuthorizationFlow.providerConfig.useIDToken
+      )
+    )
+    "DeviceAuthorizationFlow" (dict
+      "Provider" $c.deviceAuthorizationFlow.provider
+      "ProviderConfig" (dict
+        "Audience"           $c.deviceAuthorizationFlow.providerConfig.audience
+        "ClientID"           $c.deviceAuthorizationFlow.providerConfig.clientId
+        "Domain"             $domain
+        "TokenEndpoint"      $deviceTokenEndpoint
+        "DeviceAuthEndpoint" $deviceAuthEndpoint
+        "Scope"              $c.deviceAuthorizationFlow.providerConfig.scope
+        "UseIDToken"         $c.deviceAuthorizationFlow.providerConfig.useIDToken
+      )
+    )
+  -}}
+{{- end -}}
+
+{{- /* Always override StoreConfig.Engine from the top-level db block */ -}}
 {{- if $engine -}}
   {{- $_ := set $cfg "StoreConfig" (dict "Engine" $engine) -}}
 {{- end -}}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
