@@ -1,0 +1,52 @@
+name: Verify Helm chart docs
+
+# Anti-drift guard for charts/*/README.md. The README has a values
+# table that's tedious to hand-maintain — `helm-docs` regenerates
+# it from the `## @param` annotations in values.yaml. This workflow
+# runs helm-docs and fails when the regenerated README diverges
+# from what the PR committed, forcing the author to run the same
+# tool locally before merge.
+#
+# Local run: `helm-docs --chart-search-root charts`
+# Install:   https://github.com/norwoodj/helm-docs/releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**/values.yaml'
+      - 'charts/**/Chart.yaml'
+      - 'charts/**/README.md.gotmpl'
+  pull_request:
+    paths:
+      - 'charts/**/values.yaml'
+      - 'charts/**/Chart.yaml'
+      - 'charts/**/README.md'
+      - 'charts/**/README.md.gotmpl'
+
+jobs:
+  verify-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install helm-docs
+        run: |
+          set -euo pipefail
+          VERSION="1.14.2"
+          curl -sSL "https://github.com/norwoodj/helm-docs/releases/download/v${VERSION}/helm-docs_${VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /tmp helm-docs
+          sudo mv /tmp/helm-docs /usr/local/bin/helm-docs
+          helm-docs --version
+
+      - name: Regenerate READMEs
+        run: helm-docs --chart-search-root charts
+
+      - name: Fail if READMEs drifted
+        run: |
+          if ! git diff --exit-code charts/*/README.md; then
+            echo ""
+            echo "::error::charts/*/README.md is out of sync with values.yaml."
+            echo "::error::Run 'helm-docs --chart-search-root charts' locally and commit the result."
+            exit 1
+          fi
