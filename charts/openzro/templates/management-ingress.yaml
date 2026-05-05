@@ -1,4 +1,13 @@
 {{- if .Values.management.enabled -}}
+{{- /*
+  ⚠ NGINX community ingress does not support the same hostname across
+  multiple Ingress resources. If dashboard and management share a hostname,
+  enable ingress.management.enabled instead of this resource — the
+  consolidated ingress.yaml places all paths in a single Ingress object.
+  This file is only needed when management uses a different hostname or
+  when the operator prefers per-component Ingress resources (non-NGINX
+  controllers or NGINX Inc with merging support).
+*/ -}}
 {{- if .Values.management.ingress.enabled -}}
 {{- $fullName := printf "%s-management" (include "openzro.fullname" .) -}}
 {{- $svcPort := .Values.management.service.port -}}

@@ -59,6 +59,20 @@ ingress:
     ## @param ingress.dex.pathType Path type for the Dex route.
     pathType: Prefix
 
+  management:
+    ## @param ingress.management.enabled Include management HTTP in the consolidated Ingress.
+    ## Recommended when using NGINX community ingress — avoids duplicate-hostname conflicts
+    ## that arise from having management-ingress.yaml and ingress.yaml on the same host.
+    ## The management gRPC endpoint still requires its own Ingress (management-ingress-grpc.yaml)
+    ## because the backend-protocol:GRPC annotation cannot coexist with HTTP paths.
+    enabled: false
+    ## @param ingress.management.path Path prefix for the management REST API.
+    ## The management daemon serves its API at /api/v1/... so no path rewriting is needed —
+    ## requests arriving at /api are forwarded as-is and matched by the daemon's router.
+    path: /api
+    ## @param ingress.management.pathType Path type for the management route.
+    pathType: Prefix
+
 ## @param nameOverride Override the name of the chart.
 ##
 nameOverride: ""
