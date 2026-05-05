@@ -35,11 +35,14 @@ jobs:
       - name: Register subchart helm repos
         # chart-releaser-action's internal `cr package` invokes
         # `helm package` which requires every dependency repo to be
-        # registered with the local helm client. ADR-0008 added the
-        # dexidp/dex subchart dependency to charts/openzro/Chart.yaml,
-        # so register it here before chart-releaser runs.
+        # registered with the local helm client. Every entry in
+        # charts/openzro/Chart.yaml's `dependencies:` block needs a
+        # matching `helm repo add` here — adding a new subchart
+        # without updating this list makes the next release run
+        # fail with `no repository definition for <url>`.
         run: |
           helm repo add dex https://charts.dexidp.io
+          helm repo add nats https://nats-io.github.io/k8s/helm/charts/
           helm repo update
 
       - name: Run chart-releaser
