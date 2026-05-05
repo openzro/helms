@@ -220,18 +220,20 @@ are true — they're mutually exclusive.
 Renders the lib/pq DSN string the management daemon expects.
 Format mirrors what `psql` accepts on the command line.
 */}}
+{{/*
+DSN helpers — password is replaced by $(OPENZRO_DB_PASSWORD) so that
+Kubernetes dependent env-var substitution injects the value from the
+Secret at runtime. This keeps the password out of the pod spec
+(kubectl describe pod won't reveal it) and decouples DSN construction
+from the Secret value.
+*/}}
 {{- define "openzro.postgres.managementDSN" -}}
-host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.management }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.management }} user={{ include "openzro.postgres.managementUser" . }} password=$(OPENZRO_DB_PASSWORD) sslmode={{ .Values.postgres.sslMode }}
 {{- end -}}
 
 {{- define "openzro.mysql.managementUser" -}}
 {{- $o := dig "overrides" "management" dict .Values.mysql -}}
 {{- $o.username | default .Values.mysql.username -}}
-{{- end -}}
-
-{{- define "openzro.mysql.managementPassword" -}}
-{{- $o := dig "overrides" "management" dict .Values.mysql -}}
-{{- $o.password | default .Values.mysql.password -}}
 {{- end -}}
 
 {{- define "openzro.mysql.dexUser" -}}
@@ -244,61 +246,67 @@ host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Val
 {{- $o.password | default .Values.mysql.password -}}
 {{- end -}}
 
-{{/*
-Renders the go-sql-driver/mysql DSN string the management daemon
-expects: user:password@tcp(host:port)/dbname?tls=<mode>&parseTime=true
-*/}}
 {{- define "openzro.mysql.managementDSN" -}}
 {{- $u := include "openzro.mysql.managementUser" . -}}
-{{- $p := include "openzro.mysql.managementPassword" . -}}
-{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.management .Values.mysql.tls -}}
+{{- printf "%s:$(OPENZRO_DB_PASSWORD)@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.management .Values.mysql.tls -}}
 {{- end -}}
 
-{{/*
-Renders the lib/pq DSN string for the flow events HOT tier.
-*/}}
 {{- define "openzro.postgres.flowDSN" -}}
-host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.flow }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.flow }} user={{ include "openzro.postgres.managementUser" . }} password=$(OPENZRO_DB_PASSWORD) sslmode={{ .Values.postgres.sslMode }}
 {{- end -}}
 
-{{/*
-Renders the lib/pq DSN string for the activity events log.
-*/}}
 {{- define "openzro.postgres.activityDSN" -}}
-host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.activity }} user={{ include "openzro.postgres.managementUser" . }} password={{ include "openzro.postgres.managementPassword" . }} sslmode={{ .Values.postgres.sslMode }}
+host={{ .Values.postgres.host }} port={{ .Values.postgres.port }} dbname={{ .Values.postgres.databases.activity }} user={{ include "openzro.postgres.managementUser" . }} password=$(OPENZRO_DB_PASSWORD) sslmode={{ .Values.postgres.sslMode }}
 {{- end -}}
 
-{{/*
-Renders the go-sql-driver/mysql DSN for the flow events HOT tier.
-*/}}
 {{- define "openzro.mysql.flowDSN" -}}
 {{- $u := include "openzro.mysql.managementUser" . -}}
-{{- $p := include "openzro.mysql.managementPassword" . -}}
-{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.flow .Values.mysql.tls -}}
+{{- printf "%s:$(OPENZRO_DB_PASSWORD)@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.flow .Values.mysql.tls -}}
+{{- end -}}
+
+{{- define "openzro.mysql.activityDSN" -}}
+{{- $u := include "openzro.mysql.managementUser" . -}}
+{{- printf "%s:$(OPENZRO_DB_PASSWORD)@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.activity .Values.mysql.tls -}}
 {{- end -}}
 
 {{/*
-Renders the go-sql-driver/mysql DSN for the activity events log.
+Resolves the Secret name and key that holds the DB password.
+When existingSecret is set the chart-managed Secret is skipped.
 */}}
-{{- define "openzro.mysql.activityDSN" -}}
-{{- $u := include "openzro.mysql.managementUser" . -}}
-{{- $p := include "openzro.mysql.managementPassword" . -}}
-{{- printf "%s:%s@tcp(%s:%d)/%s?tls=%s&parseTime=true" $u $p .Values.mysql.host (.Values.mysql.port | int) .Values.mysql.databases.activity .Values.mysql.tls -}}
+{{- define "openzro.db.secretName" -}}
+{{- if eq (include "openzro.store.engine" .) "postgres" -}}
+  {{- .Values.postgres.existingSecret | default (printf "%s-db" (include "openzro.fullname" .)) -}}
+{{- else -}}
+  {{- .Values.mysql.existingSecret | default (printf "%s-db" (include "openzro.fullname" .)) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openzro.db.secretKey" -}}
+{{- if eq (include "openzro.store.engine" .) "postgres" -}}
+  {{- .Values.postgres.existingSecretPasswordKey | default "password" -}}
+{{- else -}}
+  {{- .Values.mysql.existingSecretPasswordKey | default "password" -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Auto-wired environment variables for the management Deployment.
-Renders the env block that selects the right backend for the data,
-flow, and activity stores from postgres.enabled / mysql.enabled.
+The password is injected via OPENZRO_DB_PASSWORD (secretKeyRef) first,
+then referenced as $(OPENZRO_DB_PASSWORD) inside the DSN strings.
+Kubernetes evaluates dependent env vars in declaration order, so the
+secretKeyRef must come before any env var that uses $(OPENZRO_DB_PASSWORD).
 
-Operators can still override anything via management.envRaw — Kubernetes
-applies env in order and the LAST entry with a given name wins, so
-envRaw (rendered after this block in management-deployment.yaml) is
-always authoritative.
+Operators can still override anything via management.envRaw — the LAST
+entry with a given name wins, so envRaw is always authoritative.
 */}}
 {{- define "openzro.management.autoWiredEnv" -}}
 {{- $engine := include "openzro.store.engine" . -}}
 {{- if eq $engine "postgres" }}
+- name: OPENZRO_DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "openzro.db.secretName" . | quote }}
+      key: {{ include "openzro.db.secretKey" . | quote }}
 - name: OPENZRO_STORE_ENGINE
   value: postgres
 - name: OPENZRO_STORE_ENGINE_POSTGRES_DSN
@@ -312,6 +320,11 @@ always authoritative.
 - name: OZ_ACTIVITY_EVENT_POSTGRES_DSN
   value: {{ include "openzro.postgres.activityDSN" . | quote }}
 {{- else if eq $engine "mysql" }}
+- name: OPENZRO_DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "openzro.db.secretName" . | quote }}
+      key: {{ include "openzro.db.secretKey" . | quote }}
 - name: OPENZRO_STORE_ENGINE
   value: mysql
 - name: OPENZRO_STORE_ENGINE_MYSQL_DSN

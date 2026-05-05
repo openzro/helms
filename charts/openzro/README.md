@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.12](https://img.shields.io/badge/Version-2.1.0--alpha.12-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
+![Version: 2.1.0-alpha.13](https://img.shields.io/badge/Version-2.1.0--alpha.13-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -448,6 +448,7 @@ The most-tweaked groups during a real install:
 | management.env | object | `{}` |  |
 | management.envFromSecret | object | `{}` |  |
 | management.envRaw | list | `[]` |  |
+| management.existingConfigSecret | string | `""` |  |
 | management.extraArgs | list | `[]` |  |
 | management.geoLite.licenseKey.existingSecret | string | `""` |  |
 | management.geoLite.licenseKey.existingSecretKey | string | `""` |  |
@@ -534,6 +535,8 @@ The most-tweaked groups during a real install:
 | mysql.databases.flow | string | `"openzro_flow"` |  |
 | mysql.databases.management | string | `"openzro"` |  |
 | mysql.enabled | bool | `false` |  |
+| mysql.existingSecret | string | `""` |  |
+| mysql.existingSecretPasswordKey | string | `""` |  |
 | mysql.host | string | `""` |  |
 | mysql.password | string | `""` |  |
 | mysql.port | int | `3306` |  |
@@ -556,6 +559,8 @@ The most-tweaked groups during a real install:
 | postgres.databases.flow | string | `"openzro_flow"` |  |
 | postgres.databases.management | string | `"openzro"` |  |
 | postgres.enabled | bool | `false` |  |
+| postgres.existingSecret | string | `""` |  |
+| postgres.existingSecretPasswordKey | string | `""` |  |
 | postgres.host | string | `""` |  |
 | postgres.password | string | `""` |  |
 | postgres.port | int | `5432` |  |

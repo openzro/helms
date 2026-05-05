@@ -93,6 +93,15 @@ postgres:
     ## @param postgres.provisioning.image Image used by the provisioning Job. Defaults to the official Postgres client.
     image: postgres:16-alpine
 
+  ## @param postgres.existingSecret Name of a pre-existing Secret containing the Postgres password.
+  ## When set, postgres.password is ignored and the password is read from this Secret.
+  ## The chart-managed <release>-db Secret is not created.
+  ## Use with Vault, SealedSecrets, ESO, or sops. Pair with existingSecretPasswordKey.
+  existingSecret: ""
+
+  ## @param postgres.existingSecretPasswordKey Key inside existingSecret that holds the password. Defaults to "password".
+  existingSecretPasswordKey: ""
+
   ## Per-component credential overrides — uncomment if you want a
   ## dedicated Postgres user for Dex (or any other component).
   ## Most teams keep a single user with access to both DBs.
@@ -160,6 +169,14 @@ mysql:
     password: ""
     ## @param mysql.provisioning.image Image used by the provisioning Job. Defaults to the official MySQL client.
     image: mysql:8.0
+
+  ## @param mysql.existingSecret Name of a pre-existing Secret containing the MySQL password.
+  ## When set, mysql.password is ignored and the password is read from this Secret.
+  ## The chart-managed <release>-db Secret is not created.
+  existingSecret: ""
+
+  ## @param mysql.existingSecretPasswordKey Key inside existingSecret that holds the password. Defaults to "password".
+  existingSecretPasswordKey: ""
 
   ## Per-component credential overrides.
   # overrides:
@@ -452,6 +469,13 @@ management:
         scope: "openid profile email offline_access"
         ## @param management.config.deviceAuthorizationFlow.providerConfig.useIDToken Use the ID token instead of the access token.
         useIDToken: false
+
+  ## @param management.existingConfigSecret Name of a pre-existing Secret containing management.json.
+  ## When set, the chart skips generating the management Secret entirely and mounts
+  ## this Secret directly. The Secret must have a key named `management.json`.
+  ## Use with Vault, SealedSecrets, External Secrets Operator, or sops-encrypted values.
+  ## All management.config.* values are ignored when this is set.
+  existingConfigSecret: ""
 
   ## @param management.configmap [deprecated] Raw JSON escape hatch for management.json.
   ## When non-empty, this JSON string is used directly and management.config.* above is ignored.

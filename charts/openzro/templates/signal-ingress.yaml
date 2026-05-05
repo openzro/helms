@@ -1,6 +1,20 @@
 {{- if .Values.signal.enabled -}}
-
 {{- if .Values.signal.ingress.enabled -}}
+{{- /*
+  Signal speaks gRPC exclusively (no HTTP endpoint). The ingress
+  controller MUST be told to use HTTP/2 for the backend connection,
+  otherwise the gRPC handshake fails with HTTP 426 / 415.
+
+  Required annotation per controller:
+    NGINX community:  nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    NGINX Inc:        nginx.org/grpc-services: "<release>-signal"
+    Traefik:          traefik.ingress.kubernetes.io/service.serversscheme: h2c
+    HAProxy:          ingress.kubernetes.io/backend-protocol: "h2"
+
+  Example for NGINX community (add under signal.ingress.annotations):
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+*/ -}}
 {{- $fullName := printf "%s-signal" (include "openzro.fullname" .) -}}
 {{- $svcPort := .Values.signal.service.port -}}
 apiVersion: networking.k8s.io/v1
