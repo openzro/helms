@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.13](https://img.shields.io/badge/Version-2.1.0--alpha.13-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
+![Version: 2.1.0-alpha.14](https://img.shields.io/badge/Version-2.1.0--alpha.14-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -397,6 +397,15 @@ The most-tweaked groups during a real install:
 | gatewayApi.routes.signal.method | string | `""` |  |
 | gatewayApi.routes.signal.service | string | `""` |  |
 | global.namespace | string | `""` |  |
+| ingress.annotations | object | `{}` |  |
+| ingress.className | string | `""` |  |
+| ingress.dashboard.path | string | `"/"` |  |
+| ingress.dashboard.pathType | string | `"Prefix"` |  |
+| ingress.dex.path | string | `"/dex"` |  |
+| ingress.dex.pathType | string | `"Prefix"` |  |
+| ingress.enabled | bool | `false` |  |
+| ingress.host | string | `""` |  |
+| ingress.tls | list | `[]` |  |
 | management.affinity | object | `{}` |  |
 | management.config.dataStoreEncryptionKey | string | `""` |  |
 | management.config.deviceAuthorizationFlow.provider | string | `"hosted"` |  |

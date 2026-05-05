@@ -1,0 +1,66 @@
+{{- if .Values.ingress.enabled -}}
+{{- /*
+  Consolidated Ingress for dashboard (/) and Dex (/dex).
+
+  Both components share the same hostname, TLS certificate, and
+  ingressClassName — separating them into two Ingress resources would
+  force operators to repeat those three fields and risk mismatches.
+
+  Path ordering matters: Dex (/dex, Prefix) is listed before the
+  dashboard catch-all (/) so the more-specific rule wins.
+
+  ⚠ Do NOT add path-rewrite annotations (rewrite-target, use-regex).
+  Dex derives all asset URL prefixes from issuerURL.Path — if the
+  /dex prefix is stripped the login page CSS/JS breaks. The dashboard
+  at / does not need rewriting either.
+
+  Components intentionally left out of this Ingress:
+    management HTTP  — kept separate (rewrite annotations conflict with Dex)
+    management gRPC  — requires backend-protocol:GRPC annotation
+    signal           — gRPC only, different host
+    relay            — different host/port
+*/ -}}
+{{- $dashSvc  := printf "%s-dashboard"  (include "openzro.fullname" .) -}}
+{{- $dashPort := .Values.dashboard.service.port -}}
+{{- $dexSvc   := printf "%s-dex" .Release.Name -}}
+{{- $dexPort  := (((.Values.dex).service).ports).http.port | default 5556 -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openzro.fullname" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- if .Values.dex.enabled }}
+          - path: {{ .Values.ingress.dex.path }}
+            pathType: {{ .Values.ingress.dex.pathType }}
+            backend:
+              service:
+                name: {{ $dexSvc }}
+                port:
+                  number: {{ $dexPort }}
+          {{- end }}
+          {{- if .Values.dashboard.enabled }}
+          - path: {{ .Values.ingress.dashboard.path }}
+            pathType: {{ .Values.ingress.dashboard.pathType }}
+            backend:
+              service:
+                name: {{ $dashSvc }}
+                port:
+                  number: {{ $dashPort }}
+          {{- end }}
+{{- end -}}

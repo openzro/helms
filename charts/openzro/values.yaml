@@ -5,6 +5,60 @@
 global:
   namespace: ""
 
+## @section Consolidated Ingress
+##
+## Single Ingress resource that routes dashboard (/) and Dex (/dex) on the
+## same hostname — the standard openZro layout. Eliminates the need to
+## repeat host, className, TLS, and annotations across three separate blocks.
+##
+## When enabled, set individual dashboard.ingress.enabled and
+## dex.ingress.enabled to false to avoid duplicate rules on the same host.
+##
+## Components that stay on separate Ingress resources (different protocol
+## or host):
+##   management HTTP  → management.ingress  (path rewrite conflicts with Dex)
+##   management gRPC  → management.ingressGrpc
+##   signal           → signal.ingress
+##   relay            → relay.ingress
+##
+ingress:
+  ## @param ingress.enabled Enable the consolidated dashboard+Dex Ingress.
+  enabled: false
+
+  ## @param ingress.className Ingress class name (e.g. nginx, traefik).
+  className: ""
+
+  ## @param ingress.host Public hostname for dashboard and Dex (e.g. vpn.acme.com).
+  ## Also used as the primary source for management.json host derivations when set.
+  host: ""
+
+  ## @param ingress.annotations Annotations applied to the consolidated Ingress.
+  ## Do NOT add path-rewrite annotations — Dex requires the /dex prefix intact.
+  ## Example for NGINX community:
+  ##   nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  ##   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  annotations: {}
+
+  ## @param ingress.tls TLS configuration. One entry covers both dashboard and Dex.
+  ## Example:
+  ##   - secretName: openzro-tls
+  ##     hosts:
+  ##       - vpn.acme.com
+  tls: []
+
+  dashboard:
+    ## @param ingress.dashboard.path Path for the dashboard. Matched before Dex.
+    path: /
+    ## @param ingress.dashboard.pathType Path type for the dashboard route.
+    pathType: Prefix
+
+  dex:
+    ## @param ingress.dex.path Path for Dex. Must match the path in dex.config.issuer.
+    ## Do not add a rewrite annotation — Dex uses this prefix for all asset URLs.
+    path: /dex
+    ## @param ingress.dex.pathType Path type for the Dex route.
+    pathType: Prefix
+
 ## @param nameOverride Override the name of the chart.
 ##
 nameOverride: ""
