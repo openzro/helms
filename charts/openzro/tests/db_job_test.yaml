@@ -1,0 +1,105 @@
+suite: db-provisioning job hardening
+templates:
+  - db-provisioning-job.yaml
+
+tests:
+  - it: job does NOT render when provisioning disabled (default)
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: job renders when postgres provisioning enabled
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+
+  - it: job has activeDeadlineSeconds to prevent hung provisioning
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 600
+
+  - it: job pod spec disables SA token automount
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: postgres container blocks privilege escalation
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: postgres container drops ALL capabilities
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: postgres container has RuntimeDefault seccomp profile
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: job has pre-install and pre-upgrade hooks
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - matchRegex:
+          path: metadata.annotations["helm.sh/hook"]
+          pattern: pre-install
+
+  - it: job has ttlSecondsAfterFinished to auto-clean on success
+    set:
+      ingress.host: vpn.example.com
+      postgres.enabled: true
+      postgres.provisioning.enabled: true
+    asserts:
+      - equal:
+          path: spec.ttlSecondsAfterFinished
+          value: 300
+
+  - it: mysql provisioning job renders when mysql enabled
+    set:
+      ingress.host: vpn.example.com
+      mysql.enabled: true
+      mysql.provisioning.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: mysql-provision

@@ -1,0 +1,148 @@
+suite: probes and graceful shutdown
+templates:
+  - management-secret.yaml
+  - management-deployment.yaml
+  - signal-deployment.yaml
+  - relay-deployment.yaml
+  - dashboard-deployment.yaml
+
+tests:
+  # ── startupProbe renders in all deployments ──────────────────────────────────
+
+  - it: management has startupProbe
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: management startupProbe has high failureThreshold for DB migration budget
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 30
+
+  - it: signal has startupProbe
+    template: signal-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: relay has startupProbe
+    template: relay-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: dashboard has startupProbe
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  # ── startupProbe can be disabled ─────────────────────────────────────────────
+
+  - it: management startupProbe can be disabled via values
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+      management.startupProbe: null
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  # ── liveness and readiness probes have consistent thresholds ─────────────────
+
+  - it: management livenessProbe has failureThreshold
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: signal livenessProbe has failureThreshold
+    template: signal-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: relay livenessProbe has failureThreshold
+    template: relay-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: dashboard livenessProbe has failureThreshold
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  # ── terminationGracePeriodSeconds ────────────────────────────────────────────
+
+  - it: management terminationGracePeriodSeconds is 60
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: signal terminationGracePeriodSeconds is 60
+    template: signal-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: relay terminationGracePeriodSeconds is 60
+    template: relay-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: dashboard terminationGracePeriodSeconds is 30
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 30
+
+  - it: terminationGracePeriodSeconds is overridable
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+      management.terminationGracePeriodSeconds: 120
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 120

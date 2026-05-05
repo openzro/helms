@@ -1,0 +1,161 @@
+suite: PodDisruptionBudget and NetworkPolicy
+templates:
+  - management-pdb.yaml
+  - signal-pdb.yaml
+  - relay-pdb.yaml
+  - dashboard-pdb.yaml
+  - network-policy.yaml
+
+tests:
+  # ── PodDisruptionBudget — only renders when replicaCount > 1 ─────────────────
+
+  - it: management PDB is NOT created with replicaCount=1 (default)
+    template: management-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: management PDB is created with replicaCount=3
+    template: management-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      management.replicaCount: 3
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: management PDB respects maxUnavailable override
+    template: management-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      management.replicaCount: 3
+      management.pdb.maxUnavailable: 1
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - isNull:
+          path: spec.minAvailable
+
+  - it: management PDB can be explicitly disabled
+    template: management-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      management.replicaCount: 3
+      management.pdb.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: signal PDB is NOT created with replicaCount=1 (default)
+    template: signal-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: signal PDB is created with replicaCount=2
+    template: signal-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      signal.replicaCount: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+
+  - it: relay PDB is NOT created with replicaCount=1 (default)
+    template: relay-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: relay PDB is created with replicaCount=2
+    template: relay-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      relay.replicaCount: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+
+  - it: dashboard PDB is NOT created with replicaCount=1 (default)
+    template: dashboard-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: dashboard PDB is created with replicaCount=2
+    template: dashboard-pdb.yaml
+    set:
+      ingress.host: vpn.example.com
+      dashboard.replicaCount: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+
+  # ── NetworkPolicy — opt-in via networkPolicy.enabled ─────────────────────────
+
+  - it: NetworkPolicy renders nothing when disabled (default)
+    template: network-policy.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: NetworkPolicy creates 4 policies when enabled
+    template: network-policy.yaml
+    set:
+      ingress.host: vpn.example.com
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: NetworkPolicy management policy targets management pods
+    template: network-policy.yaml
+    set:
+      ingress.host: vpn.example.com
+      networkPolicy.enabled: true
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-openzro-management
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openzro-management
+
+  - it: NetworkPolicy dashboard policy targets dashboard pods
+    template: network-policy.yaml
+    set:
+      ingress.host: vpn.example.com
+      networkPolicy.enabled: true
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-openzro-dashboard
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openzro-dashboard

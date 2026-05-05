@@ -1,0 +1,57 @@
+name: Helm Unit Tests
+
+# Runs helm-unittest on every PR and push to main that touches the
+# openzro chart. Catches template regressions (wrong conditionals,
+# missing security fields, broken secret wiring) before the chart is
+# packaged and published by helm-release.yml.
+#
+# Test suites live in charts/openzro/tests/*_test.yaml.
+# Run locally: helm plugin install https://github.com/helm-unittest/helm-unittest
+#              helm unittest charts/openzro
+
+on:
+  pull_request:
+    paths:
+      - 'charts/openzro/**'
+  push:
+    branches: [main]
+    paths:
+      - 'charts/openzro/**'
+  workflow_dispatch:
+
+jobs:
+  unittest:
+    name: helm unittest — openzro
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Register subchart repos
+        # helm-unittest renders templates which require subchart
+        # dependencies to be resolved. Registering repos + running
+        # dependency update ensures the charts/ vendor directory is
+        # populated before tests run.
+        run: |
+          helm repo add dex https://charts.dexidp.io
+          helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+          helm repo update
+          helm dependency update charts/openzro
+
+      - name: Install helm-unittest plugin
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version v0.8.1
+
+      - name: Run unit tests
+        run: helm unittest charts/openzro --output-type JUnit --output-file test-results.xml
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: test-results.xml
+          check_name: Helm Unit Tests
+          comment_mode: always
+          fail_on: test failures
