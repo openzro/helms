@@ -1,0 +1,151 @@
+suite: security hardening
+templates:
+  - management-serviceaccount.yaml
+  - signal-serviceaccount.yaml
+  - relay-serviceaccount.yaml
+  - dashboard-serviceaccount.yaml
+  - management-secret.yaml
+  - management-deployment.yaml
+  - signal-deployment.yaml
+  - relay-deployment.yaml
+  - dashboard-deployment.yaml
+
+tests:
+  # ── automountServiceAccountToken ────────────────────────────────────────────
+
+  - it: management ServiceAccount disables automount
+    template: management-serviceaccount.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: signal ServiceAccount disables automount
+    template: signal-serviceaccount.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: relay ServiceAccount disables automount
+    template: relay-serviceaccount.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: dashboard ServiceAccount disables automount
+    template: dashboard-serviceaccount.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  # ── container securityContext ────────────────────────────────────────────────
+
+  - it: management container blocks privilege escalation
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: management container drops ALL capabilities
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: management container has RuntimeDefault seccomp profile
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: signal container blocks privilege escalation
+    template: signal-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: signal container drops ALL capabilities
+    template: signal-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: relay container blocks privilege escalation
+    template: relay-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: relay container drops ALL capabilities
+    template: relay-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: dashboard container blocks privilege escalation
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: dashboard container drops ALL capabilities
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  # ── version label consistency ────────────────────────────────────────────────
+
+  - it: dashboard deployment has app.kubernetes.io/version label
+    template: dashboard-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/version"]
+
+  - it: management deployment has app.kubernetes.io/version label
+    template: management-deployment.yaml
+    set:
+      ingress.host: vpn.example.com
+    asserts:
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/version"]
