@@ -1,4 +1,4 @@
-## @section openZro Parameters
+## @section Global Parameters
 
 ## @param global.namespace Kubernetes namespace for the openZro components.
 ##
