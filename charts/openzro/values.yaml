@@ -945,6 +945,28 @@ relay:
   ##
   containerPort: 33080
 
+  ## ADR-0014 inter-pod fabric. The relay binary opens a second TCP
+  ## listener on `cluster.port` for sibling pods to forward traffic
+  ## destined to peers connected to a different pod. A dedicated
+  ## Headless Service (clusterIP: None) advertises every relay pod's
+  ## IP so each pod can resolve siblings and dial back.
+  cluster:
+    ## @param relay.cluster.enabled Force inter-pod fabric on/off. `null` (default)
+    ## auto-enables when relay.replicaCount > 1 and disables at 1 — the right
+    ## default for both fresh installs and operators bumping replicas. Set to
+    ## `true` to force on (e.g. during a single-replica chaos test) or `false`
+    ## to keep the fabric off even with multiple replicas (legacy behaviour:
+    ## peers on different pods can't talk; rely on sticky-session LB).
+    ##
+    enabled: null
+
+    ## @param relay.cluster.port TCP port the relay listens on for inter-pod
+    ## traffic. Same value on every pod. The Headless Service publishes this
+    ## port; pods discover each other via DNS and dial `<ip>:<port>`.
+    ## 7090 matches relay/server/cluster.DefaultInterpodPort.
+    ##
+    port: 7090
+
   service:
     ## @param relay.service.type Service type for the relay component.
     ##

@@ -41,6 +41,11 @@ spec:
             - name: metrics
               containerPort: {{ .Values.relay.metrics.port}}
               protocol: TCP
+            {{- if include "openzro.relay.cluster.enabled" . }}
+            - name: cluster
+              containerPort: {{ .Values.relay.cluster.port }}
+              protocol: TCP
+            {{- end }}
           {{- if .Values.relay.livenessProbe }}
             {{- with .Values.relay.livenessProbe }}
           livenessProbe:
@@ -55,7 +60,8 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.relay.resources | nindent 12 }}
-          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) }}
+          {{- $clusterEnv := include "openzro.relay.cluster.env" . }}
+          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) (trim $clusterEnv) }}
           env:
           {{- range $key, $val := .Values.relay.env }}
             - name: {{ $key }}
@@ -72,6 +78,9 @@ spec:
                 secretKeyRef:
                   name: {{ (split "/" $val)._0 }}
                   key: {{ (split "/" $val)._1 }}
+          {{- end }}
+          {{- with trim $clusterEnv }}
+            {{- . | nindent 12 }}
           {{- end }}
           {{- end }}
           {{- if .Values.relay.volumeMounts }}

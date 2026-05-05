@@ -57,6 +57,66 @@ Usage: {{ include "openzro.cluster.peers" (dict "ctx" . "component" "management"
 {{- end -}}
 
 {{/*
+Whether the relay should run with ADR-0014's inter-pod fabric on.
+Three states:
+  - `relay.cluster.enabled: true`  → forced on, even at replicaCount=1
+  - `relay.cluster.enabled: false` → forced off, even at replicaCount>1
+  - `relay.cluster.enabled: null`  → auto: on iff replicaCount > 1
+
+The auto behaviour is the right default: a single-replica relay has
+nobody to talk to, multi-replica needs the fabric to share peers.
+Returns "true" / "" so callers can `if include "..." .`.
+*/}}
+{{- define "openzro.relay.cluster.enabled" -}}
+{{- $explicit := .Values.relay.cluster.enabled -}}
+{{- $replicas := int (.Values.relay.replicaCount | default 1) -}}
+{{- if eq (kindOf $explicit) "bool" -}}
+{{- if $explicit -}}true{{- end -}}
+{{- else if gt $replicas 1 -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Headless Service short name for the relay's inter-pod fabric.
+Wired into OZ_CLUSTER_HEADLESS — the relay's discovery loop
+resolves this with net.LookupHost every cluster.interval seconds.
+*/}}
+{{- define "openzro.relay.cluster.headless" -}}
+{{- printf "%s-relay-internal" (include "openzro.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Env block for the relay container in cluster mode. Empty in
+single-pod mode, so the deployment template can splice it in
+unconditionally.
+
+POD_IP comes from the K8s downward API. The relay binary uses it
+as its inter-pod announce address (HELLO frame payload) so siblings
+can dial back without depending on ephemeral source ports.
+*/}}
+{{- define "openzro.relay.cluster.env" -}}
+{{- if include "openzro.relay.cluster.enabled" . }}
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: OZ_CLUSTER_HEADLESS
+  value: {{ include "openzro.relay.cluster.headless" . | quote }}
+- name: OZ_CLUSTER_PORT
+  value: {{ .Values.relay.cluster.port | quote }}
+- name: OZ_POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+{{- end -}}
+{{- end -}}
+
+{{/*
 NATS connection URL for `cluster.mode=external`. Order of resolution:
   1. `cluster.external.url` — explicit operator override
   2. `nats.enabled=true` — auto-derive from the bundled subchart at
