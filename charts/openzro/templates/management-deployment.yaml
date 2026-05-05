@@ -65,6 +65,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "openzro.management.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.management.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.management.podSecurityContext | nindent 8 }}
       containers:
@@ -171,6 +172,12 @@ spec:
           {{- if .Values.management.readinessProbe }}
             {{- with .Values.management.readinessProbe }}
           readinessProbe:
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.management.startupProbe }}
+            {{- with .Values.management.startupProbe }}
+          startupProbe:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}

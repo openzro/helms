@@ -1,0 +1,18 @@
+{{- if and .Values.relay.enabled .Values.relay.pdb.enabled (gt (.Values.relay.replicaCount | int) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "openzro.fullname" . }}-relay
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.relay.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "openzro.relay.selectorLabels" . | nindent 6 }}
+  {{- if .Values.relay.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.relay.pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.relay.pdb.minAvailable }}
+  {{- end }}
+{{- end -}}

@@ -543,6 +543,15 @@ management:
   ##
   replicaCount: 1
 
+  ## PodDisruptionBudget — auto-enabled when replicaCount > 1.
+  ## @param management.pdb.enabled Enable PodDisruptionBudget for management.
+  ## @param management.pdb.minAvailable Minimum available pods during disruption.
+  ## @param management.pdb.maxUnavailable Maximum unavailable pods (mutually exclusive with minAvailable).
+  pdb:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+
   ## @param management.strategy Deployment strategy.
   ## Default Recreate to avoid Multi-Attach errors on RWO PVCs
   ## (Longhorn, GP3, NFS-RWO, ...). Override to RollingUpdate only
@@ -614,12 +623,16 @@ management:
 
   ## @param management.securityContext Security context for the management container.
   ##
-  securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  # readOnlyRootFilesystem: true   # enable when /tmp is an emptyDir mount
   # runAsNonRoot: true
+  # runAsUser: 65534
   # runAsUser: 1000
 
   ## @param management.useBackwardsGrpcService Use the backwards-compatible GRPC service.
@@ -788,6 +801,10 @@ management:
     ##
     existingPVName: ""
 
+  ## @param management.terminationGracePeriodSeconds Seconds to wait for graceful shutdown (active client connections + DB flush).
+  ##
+  terminationGracePeriodSeconds: 60
+
   ## @param management.livenessProbe for the management component.
   ##
   livenessProbe:
@@ -803,6 +820,16 @@ management:
   readinessProbe:
     failureThreshold: 3
     initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 3
+    tcpSocket:
+      port: http
+
+  ## @param management.startupProbe for the management component (DB migrations may take time on first boot).
+  ##
+  startupProbe:
+    failureThreshold: 30
+    initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 3
     tcpSocket:
@@ -829,6 +856,15 @@ signal:
   ## @param signal.replicaCount Number of signal pod replicas.
   ##
   replicaCount: 1
+
+  ## PodDisruptionBudget — auto-enabled when replicaCount > 1.
+  ## @param signal.pdb.enabled Enable PodDisruptionBudget for signal.
+  ## @param signal.pdb.minAvailable Minimum available pods during disruption.
+  ## @param signal.pdb.maxUnavailable Maximum unavailable pods (mutually exclusive with minAvailable).
+  pdb:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
 
   image:
     ## @param signal.image.repository Docker image repository for the signal component.
@@ -875,12 +911,16 @@ signal:
 
   ## @param signal.securityContext Security context for the signal container.
   ##
-  securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
+  # runAsUser: 65534
   # runAsUser: 1000
 
   metrics:
@@ -969,20 +1009,37 @@ signal:
   ##
   affinity: {}
 
+  ## @param signal.terminationGracePeriodSeconds Seconds to wait for graceful shutdown (active gRPC connections).
+  ##
+  terminationGracePeriodSeconds: 60
+
   ## @param signal.livenessProbe for the signal component.
   ##
-
   livenessProbe:
+    failureThreshold: 3
     initialDelaySeconds: 5
-    periodSeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     tcpSocket:
       port: grpc
 
   ## @param signal.readinessProbe for the signal component.
   ##
   readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    tcpSocket:
+      port: grpc
+
+  ## @param signal.startupProbe for the signal component.
+  ##
+  startupProbe:
+    failureThreshold: 15
     initialDelaySeconds: 5
     periodSeconds: 5
+    timeoutSeconds: 3
     tcpSocket:
       port: grpc
 
@@ -1006,6 +1063,15 @@ relay:
   ## @param relay.replicaCount Number of relay pod replicas.
   ##
   replicaCount: 1
+
+  ## PodDisruptionBudget — auto-enabled when replicaCount > 1.
+  ## @param relay.pdb.enabled Enable PodDisruptionBudget for relay.
+  ## @param relay.pdb.minAvailable Minimum available pods during disruption.
+  ## @param relay.pdb.maxUnavailable Maximum unavailable pods (mutually exclusive with minAvailable).
+  pdb:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
 
   ## @param relay.logLevel Log level for the relay component.
   ##
@@ -1069,12 +1135,16 @@ relay:
 
   ## @param relay.securityContext Security context for the relay container.
   ##
-  securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
+  # runAsUser: 65534
   # runAsUser: 1000
 
   metrics:
@@ -1204,19 +1274,37 @@ relay:
   ##
   affinity: {}
 
+  ## @param relay.terminationGracePeriodSeconds Seconds to wait for graceful shutdown (active WireGuard relay sessions).
+  ##
+  terminationGracePeriodSeconds: 60
+
   ## @param relay.livenessProbe for the relay component.
   ##
   livenessProbe:
+    failureThreshold: 3
     initialDelaySeconds: 5
-    periodSeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     tcpSocket:
       port: http
 
   ## @param relay.readinessProbe for the relay component.
   ##
   readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    tcpSocket:
+      port: http
+
+  ## @param relay.startupProbe for the relay component.
+  ##
+  startupProbe:
+    failureThreshold: 15
     initialDelaySeconds: 5
     periodSeconds: 5
+    timeoutSeconds: 3
     tcpSocket:
       port: http
 
@@ -1243,6 +1331,15 @@ dashboard:
 
   ## @param replicaCount Number of replicas to deploy
   replicaCount: 1
+
+  ## PodDisruptionBudget — auto-enabled when replicaCount > 1.
+  ## @param dashboard.pdb.enabled Enable PodDisruptionBudget for dashboard.
+  ## @param dashboard.pdb.minAvailable Minimum available pods during disruption.
+  ## @param dashboard.pdb.maxUnavailable Maximum unavailable pods (mutually exclusive with minAvailable).
+  pdb:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
 
   image:
     ## @param image.repository image repository
@@ -1272,6 +1369,10 @@ dashboard:
     # template
     name: ""
 
+  ## @param dashboard.deploymentAnnotations Annotations for the dashboard deployment.
+  ##
+  deploymentAnnotations: {}
+
   ## @param dashboard.podAnnotations Annotations for pods
   ## ref:
   ## https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -1288,13 +1389,16 @@ dashboard:
   ## ref:
   ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param dashboard.securityContext
-  securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
-  # runAsUser: 1000
+  # runAsUser: 65534
 
   ## @param dashboard.containerPort
   containerPort: 80
@@ -1380,10 +1484,17 @@ dashboard:
 
   lifecycle: {} # Define lifecycle hooks (preStop, postStart) if needed.
 
+  ## @param dashboard.terminationGracePeriodSeconds Seconds to wait for graceful shutdown.
+  ##
+  terminationGracePeriodSeconds: 30
+
   ## @param dashboard.livenessProbe for the dashboard component.
   ##
   livenessProbe:
-    periodSeconds: 5
+    failureThreshold: 3
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     httpGet:
       path: /
       port: http
@@ -1391,8 +1502,21 @@ dashboard:
   ## @param dashboard.readinessProbe for the dashboard component.
   ##
   readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    httpGet:
+      path: /
+      port: http
+
+  ## @param dashboard.startupProbe for the dashboard component.
+  ##
+  startupProbe:
+    failureThreshold: 15
     initialDelaySeconds: 5
     periodSeconds: 5
+    timeoutSeconds: 3
     httpGet:
       path: /
       port: http
@@ -1406,6 +1530,14 @@ dashboard:
   volumes: []
   # - name: tmp
   #   emptyDir: {}
+## @section NetworkPolicy
+
+## @param networkPolicy.enabled Enable NetworkPolicy resources for all components.
+##   When enabled, each component only accepts ingress from its expected peers.
+##   Requires a CNI that enforces NetworkPolicy (Calico, Cilium, Weave, etc.).
+networkPolicy:
+  enabled: false
+
 ## @section openZro Extra Manifests to be included in the chart
 
 extraManifests: {}
