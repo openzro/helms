@@ -1,0 +1,31 @@
+{{- /*
+Headless Service that resolves to every relay pod's IP. Used by
+ADR-0014's inter-pod fabric: each pod periodically resolves this DNS
+name to learn the current IP set, then dials siblings on
+relay.cluster.port to exchange WHO_HAS / I_HAVE / FWD frames.
+
+Rendered only when the cluster fabric is active. Unlike the public
+relay Service (which faces clients via LoadBalancer or Ingress),
+this one is in-cluster only — bind it to a NetworkPolicy so only
+relay pods can reach it.
+*/ -}}
+{{- if and .Values.relay.enabled (include "openzro.relay.cluster.enabled" .) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openzro.fullname" . }}-relay-internal
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.relay.labels" . | nindent 4 }}
+    openzro.io/component-role: relay-internal
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "openzro.relay.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: cluster
+      port: {{ .Values.relay.cluster.port }}
+      targetPort: cluster
+      protocol: TCP
+{{- end }}
