@@ -1,29 +1,34 @@
 {{- if .Values.ingress.enabled -}}
 {{- /*
-  Consolidated Ingress for dashboard (/) and Dex (/dex).
+  Consolidated Ingress — dashboard (/), Dex (/dex), and optionally
+  management HTTP (/api) — all on the same hostname and TLS certificate.
 
-  Both components share the same hostname, TLS certificate, and
-  ingressClassName — separating them into two Ingress resources would
-  force operators to repeat those three fields and risk mismatches.
-
-  Path ordering matters: Dex (/dex, Prefix) is listed before the
-  dashboard catch-all (/) so the more-specific rule wins.
+  Path ordering (most-specific first, required by NGINX community):
+    1. /dex        → Dex          (no rewrite — Dex uses the prefix for asset URLs)
+    2. /api        → Management   (optional; no rewrite — daemon serves at /api/v1/...)
+    3. /           → Dashboard    (catch-all)
 
   ⚠ Do NOT add path-rewrite annotations (rewrite-target, use-regex).
-  Dex derives all asset URL prefixes from issuerURL.Path — if the
-  /dex prefix is stripped the login page CSS/JS breaks. The dashboard
-  at / does not need rewriting either.
+  Dex derives all asset URL prefixes from issuerURL.Path — stripping /dex
+  breaks login page CSS/JS. No other path here needs rewriting either.
 
-  Components intentionally left out of this Ingress:
-    management HTTP  — kept separate (rewrite annotations conflict with Dex)
-    management gRPC  — requires backend-protocol:GRPC annotation
-    signal           — gRPC only, different host
-    relay            — different host/port
+  ⚠ NGINX community ingress does not support the same hostname across
+  multiple Ingress resources. Enable ingress.management.enabled: true
+  to include the management HTTP API here instead of management-ingress.yaml.
+
+  Intentionally excluded from this Ingress:
+    management gRPC — requires backend-protocol:GRPC annotation (HTTP/2 only),
+                      incompatible with the HTTP paths above; use
+                      management-ingress-grpc.yaml on a separate hostname.
+    signal          — gRPC only, separate hostname.
+    relay           — TCP, not HTTP; separate hostname/port.
 */ -}}
 {{- $dashSvc  := printf "%s-dashboard"  (include "openzro.fullname" .) -}}
 {{- $dashPort := .Values.dashboard.service.port -}}
 {{- $dexSvc   := printf "%s-dex" .Release.Name -}}
 {{- $dexPort  := (((.Values.dex).service).ports).http.port | default 5556 -}}
+{{- $mgmtSvc  := printf "%s-management" (include "openzro.fullname" .) -}}
+{{- $mgmtPort := .Values.management.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -53,6 +58,15 @@ spec:
                 name: {{ $dexSvc }}
                 port:
                   number: {{ $dexPort }}
+          {{- end }}
+          {{- if and .Values.management.enabled .Values.ingress.management.enabled }}
+          - path: {{ .Values.ingress.management.path }}
+            pathType: {{ .Values.ingress.management.pathType }}
+            backend:
+              service:
+                name: {{ $mgmtSvc }}
+                port:
+                  number: {{ $mgmtPort }}
           {{- end }}
           {{- if .Values.dashboard.enabled }}
           - path: {{ .Values.ingress.dashboard.path }}

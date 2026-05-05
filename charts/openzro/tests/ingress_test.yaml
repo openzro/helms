@@ -1,0 +1,152 @@
+suite: consolidated ingress
+templates:
+  - ingress.yaml
+
+tests:
+  # ── disabled by default ──────────────────────────────────────────────────────
+
+  - it: ingress renders nothing when disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── basic rendering ──────────────────────────────────────────────────────────
+
+  - it: ingress renders one document when enabled
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+
+  - it: ingress uses the configured hostname
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: vpn.example.com
+
+  # ── path ordering: /dex before /api before / ─────────────────────────────────
+
+  - it: dex path is listed before dashboard (specificity order)
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /dex
+      - equal:
+          path: spec.rules[0].http.paths[1].path
+          value: /
+
+  - it: management path is between dex and dashboard when enabled
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      ingress.management.enabled: true
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /dex
+      - equal:
+          path: spec.rules[0].http.paths[1].path
+          value: /api
+      - equal:
+          path: spec.rules[0].http.paths[2].path
+          value: /
+
+  # ── management HTTP opt-in ───────────────────────────────────────────────────
+
+  - it: management path is NOT included by default
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+    asserts:
+      - notContains:
+          path: spec.rules[0].http.paths
+          content:
+            path: /api
+
+  - it: management path included when ingress.management.enabled is true
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      ingress.management.enabled: true
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: RELEASE-NAME-openzro-management
+                port:
+                  number: 80
+
+  - it: management path is NOT included when management.enabled is false
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      ingress.management.enabled: true
+      management.enabled: false
+    asserts:
+      - notContains:
+          path: spec.rules[0].http.paths
+          content:
+            path: /api
+
+  - it: management path is configurable
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      ingress.management.enabled: true
+      ingress.management.path: /control
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: /control
+            pathType: Prefix
+            backend:
+              service:
+                name: RELEASE-NAME-openzro-management
+                port:
+                  number: 80
+
+  # ── dex disabled ─────────────────────────────────────────────────────────────
+
+  - it: dex path is excluded when dex.enabled is false
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      dex.enabled: false
+    asserts:
+      - notContains:
+          path: spec.rules[0].http.paths
+          content:
+            path: /dex
+
+  # ── TLS ──────────────────────────────────────────────────────────────────────
+
+  - it: TLS block renders when configured
+    set:
+      ingress.enabled: true
+      ingress.host: vpn.example.com
+      ingress.tls:
+        - secretName: vpn-tls
+          hosts:
+            - vpn.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: vpn-tls
+      - contains:
+          path: spec.tls[0].hosts
+          content: vpn.example.com
