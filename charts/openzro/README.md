@@ -628,13 +628,7 @@ The most-tweaked groups during a real install:
 | relay.image.repository | string | `"ghcr.io/openzro/relay"` |  |
 | relay.image.tag | string | `""` |  |
 | relay.imagePullSecrets | list | `[]` |  |
-| relay.ingress.annotations | object | `{}` |  |
-| relay.ingress.className | string | `""` |  |
-| relay.ingress.enabled | bool | `false` |  |
-| relay.ingress.hosts[0].host | string | `"example.com"` |  |
-| relay.ingress.hosts[0].paths[0].path | string | `"/relay"` |  |
-| relay.ingress.hosts[0].paths[0].pathType | string | `"ImplementationSpecific"` |  |
-| relay.ingress.tls | list | `[]` |  |
+| relay.publicHostname | string | `""` | Public hostname or IP for the relay. Used to auto-build the rel:// address advertised to peers. Expose via `relay.service.type: LoadBalancer` (TCP; Ingress is not supported). |
 | relay.livenessProbe.failureThreshold | int | `3` |  |
 | relay.livenessProbe.initialDelaySeconds | int | `5` |  |
 | relay.livenessProbe.periodSeconds | int | `10` |  |
