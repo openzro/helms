@@ -87,6 +87,29 @@ resolves this with net.LookupHost every cluster.interval seconds.
 {{- end -}}
 
 {{/*
+Name of the Secret holding the inter-pod HMAC key. Either rendered
+by relay-cluster-auth-secret.yaml (chart-managed) or pre-created by
+the operator and pointed to via relay.cluster.authSecret.existingSecret.
+*/}}
+{{- define "openzro.relay.cluster.authSecretName" -}}
+{{- if .Values.relay.cluster.authSecret.existingSecret -}}
+{{- .Values.relay.cluster.authSecret.existingSecret -}}
+{{- else -}}
+{{- printf "%s-relay-cluster-auth" (include "openzro.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Key inside the Secret that holds the HMAC value. Defaults to
+"authSecret" and matches what relay-cluster-auth-secret.yaml writes;
+operators using their own Secret can override via
+relay.cluster.authSecret.existingSecretKey.
+*/}}
+{{- define "openzro.relay.cluster.authSecretKey" -}}
+{{- .Values.relay.cluster.authSecret.existingSecretKey | default "authSecret" -}}
+{{- end -}}
+
+{{/*
 Env block for the relay container in cluster mode. Empty in
 single-pod mode, so the deployment template can splice it in
 unconditionally.
@@ -113,6 +136,11 @@ can dial back without depending on ephemeral source ports.
   valueFrom:
     fieldRef:
       fieldPath: status.podIP
+- name: OZ_CLUSTER_AUTH_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "openzro.relay.cluster.authSecretName" . | quote }}
+      key: {{ include "openzro.relay.cluster.authSecretKey" . | quote }}
 {{- end -}}
 {{- end -}}
 
