@@ -967,6 +967,27 @@ relay:
     ##
     port: 7090
 
+    ## Inter-pod HELLO authentication. The relay binary stamps an HMAC-SHA256
+    ## over each HELLO so a pod that can dial port 7090 but doesn't know the
+    ## secret is rejected at handshake. Three configuration paths:
+    ##   - Leave both fields empty: chart auto-generates a random 32-char value
+    ##     on first install and preserves it across upgrades via `lookup`.
+    ##     Recommended for self-contained installs.
+    ##   - Set authSecret.value: chart stores that literal in a managed Secret.
+    ##     Use this with SealedSecrets, sops, or chart-rendered GitOps when
+    ##     the value is owned upstream.
+    ##   - Set authSecret.existingSecret: chart reads from your own Secret,
+    ##     skipping the chart-managed Secret entirely. Pair with
+    ##     existingSecretKey to override the default key name.
+    ##
+    authSecret:
+      ## @param relay.cluster.authSecret.value Literal HMAC secret to store. Empty = auto-gen.
+      value: ""
+      ## @param relay.cluster.authSecret.existingSecret Use a pre-existing Secret. Empty = chart-managed.
+      existingSecret: ""
+      ## @param relay.cluster.authSecret.existingSecretKey Key inside existingSecret. Defaults to "authSecret".
+      existingSecretKey: ""
+
   service:
     ## @param relay.service.type Service type for the relay component.
     ##
