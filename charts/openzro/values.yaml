@@ -1363,13 +1363,19 @@ relay:
 
   ## @param relay.livenessProbe for the relay component.
   ##
+  ## httpGet em /metrics (porta `metrics`/9090, HTTP plaintext) em vez
+  ## de tcpSocket em `http`/33080. O port `http` serve TLS (rels://) e
+  ## probe TCP gera log noise — "http: TLS handshake error from ... EOF" —
+  ## a cada poll. O metrics server sempre roda no relay (mesmo quando
+  ## relay.metrics.enabled=false controla apenas exposure no Service).
   livenessProbe:
     failureThreshold: 3
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 3
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /metrics
+      port: metrics
 
   ## @param relay.readinessProbe for the relay component.
   ##
@@ -1378,8 +1384,9 @@ relay:
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 3
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /metrics
+      port: metrics
 
   ## @param relay.startupProbe for the relay component.
   ##
@@ -1388,8 +1395,9 @@ relay:
     initialDelaySeconds: 5
     periodSeconds: 5
     timeoutSeconds: 3
-    tcpSocket:
-      port: http
+    httpGet:
+      path: /metrics
+      port: metrics
 
   ## @param relay.volumeMounts Volume mounts for the relay pod.
   volumeMounts: []

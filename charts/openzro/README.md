@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.25](https://img.shields.io/badge/Version-2.1.0--alpha.25-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
+![Version: 2.1.0-alpha.26](https://img.shields.io/badge/Version-2.1.0--alpha.26-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -633,9 +633,10 @@ The most-tweaked groups during a real install:
 | relay.image.tag | string | `""` |  |
 | relay.imagePullSecrets | list | `[]` |  |
 | relay.livenessProbe.failureThreshold | int | `3` |  |
+| relay.livenessProbe.httpGet.path | string | `"/metrics"` |  |
+| relay.livenessProbe.httpGet.port | string | `"metrics"` |  |
 | relay.livenessProbe.initialDelaySeconds | int | `5` |  |
 | relay.livenessProbe.periodSeconds | int | `10` |  |
-| relay.livenessProbe.tcpSocket.port | string | `"http"` |  |
 | relay.livenessProbe.timeoutSeconds | int | `3` |  |
 | relay.logLevel | string | `"info"` |  |
 | relay.metrics.enabled | bool | `false` |  |
@@ -648,9 +649,10 @@ The most-tweaked groups during a real install:
 | relay.podSecurityContext | object | `{}` |  |
 | relay.publicHostname | string | `""` |  |
 | relay.readinessProbe.failureThreshold | int | `3` |  |
+| relay.readinessProbe.httpGet.path | string | `"/metrics"` |  |
+| relay.readinessProbe.httpGet.port | string | `"metrics"` |  |
 | relay.readinessProbe.initialDelaySeconds | int | `5` |  |
 | relay.readinessProbe.periodSeconds | int | `10` |  |
-| relay.readinessProbe.tcpSocket.port | string | `"http"` |  |
 | relay.readinessProbe.timeoutSeconds | int | `3` |  |
 | relay.replicaCount | int | `1` |  |
 | relay.resources | object | `{}` |  |
@@ -666,9 +668,10 @@ The most-tweaked groups during a real install:
 | relay.serviceAccount.create | bool | `true` |  |
 | relay.serviceAccount.name | string | `""` |  |
 | relay.startupProbe.failureThreshold | int | `15` |  |
+| relay.startupProbe.httpGet.path | string | `"/metrics"` |  |
+| relay.startupProbe.httpGet.port | string | `"metrics"` |  |
 | relay.startupProbe.initialDelaySeconds | int | `5` |  |
 | relay.startupProbe.periodSeconds | int | `5` |  |
-| relay.startupProbe.tcpSocket.port | string | `"http"` |  |
 | relay.startupProbe.timeoutSeconds | int | `3` |  |
 | relay.terminationGracePeriodSeconds | int | `60` |  |
 | relay.tls.certManager.annotations | object | `{}` |  |
