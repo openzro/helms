@@ -160,6 +160,12 @@ OZ_AUTH_SECRET espelha management.config.relay.secret — sem isso o
 relay rejeita as credenciais que o management emite para os peers.
 */}}
 {{- define "openzro.relay.core.env" -}}
+{{- /* OZ_LISTEN_ADDRESS — relay binary default é `:443`, mas o chart usa
+       relay.containerPort (default 33080) tanto para o probe TCP quanto
+       para o targetPort do Service. Sem este env, readinessProbe falha
+       com timeout porque o binário escuta em outra porta. */}}
+- name: OZ_LISTEN_ADDRESS
+  value: {{ printf ":%d" (.Values.relay.containerPort | int) | quote }}
 {{- if .Values.relay.publicHostname }}
 - name: OZ_EXPOSED_ADDRESS
   value: {{ printf "%s:%d" .Values.relay.publicHostname (.Values.relay.service.port | int) | quote }}
