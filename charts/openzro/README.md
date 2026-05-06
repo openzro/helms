@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.26](https://img.shields.io/badge/Version-2.1.0--alpha.26-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
+![Version: 2.1.0-alpha.27](https://img.shields.io/badge/Version-2.1.0--alpha.27-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -379,18 +379,12 @@ The most-tweaked groups during a real install:
 | dex.service.ports.grpc.port | int | `5557` |  |
 | dex.service.ports.http.port | int | `5556` |  |
 | dex.service.ports.telemetry.port | int | `5558` |  |
-| dex.volumeMounts[0].mountPath | string | `"/srv/dex/web/themes/openzro"` |  |
-| dex.volumeMounts[0].name | string | `"openzro-theme"` |  |
+| dex.volumeMounts[0].mountPath | string | `"/etc/dex/grpc-certs"` |  |
+| dex.volumeMounts[0].name | string | `"dex-grpc-certs"` |  |
 | dex.volumeMounts[0].readOnly | bool | `true` |  |
-| dex.volumeMounts[1].mountPath | string | `"/etc/dex/grpc-certs"` |  |
-| dex.volumeMounts[1].name | string | `"dex-grpc-certs"` |  |
-| dex.volumeMounts[1].readOnly | bool | `true` |  |
-| dex.volumes[0].configMap.name | string | `"openzro-dex-theme"` |  |
-| dex.volumes[0].configMap.optional | bool | `true` |  |
-| dex.volumes[0].name | string | `"openzro-theme"` |  |
-| dex.volumes[1].name | string | `"dex-grpc-certs"` |  |
-| dex.volumes[1].secret.optional | bool | `true` |  |
-| dex.volumes[1].secret.secretName | string | `"openzro-dex-grpc"` |  |
+| dex.volumes[0].name | string | `"dex-grpc-certs"` |  |
+| dex.volumes[0].secret.optional | bool | `true` |  |
+| dex.volumes[0].secret.secretName | string | `"openzro-dex-grpc"` |  |
 | extraManifests | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
 | gatewayApi.createGateway | bool | `true` |  |

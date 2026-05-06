@@ -1936,19 +1936,14 @@ dex:
   #     mode). Production should provision the secret via
   #     cert-manager (see openzro-operator-config chart).
   volumes:
-    # Optional override for the theme. The default image
-    # (ghcr.io/openzro/dex) ships the openZro brand theme already
-    # baked in at /srv/dex/web/themes/openzro/, so operators don't
-    # need to do anything to get a branded login screen. This
-    # ConfigMap, when present, MASKS the bundled theme and lets an
-    # operator drop in their own logo/styles without rebuilding the
-    # image. Name is hardcoded (not templated) because subchart
-    # values aren't re-evaluated by Helm — historic bug, see chart
-    # CHANGELOG.
-    - name: openzro-theme
-      configMap:
-        name: openzro-dex-theme
-        optional: true
+    # NAO mountar /srv/dex/web/themes/openzro/ por default. A imagem
+    # ghcr.io/openzro/dex traz o tema baked, e mountar com ConfigMap
+    # `optional: true` quando ela nao existe cria um dir VAZIO que
+    # mascara os assets baked — todos os styles/icons retornam 404
+    # e a tela de login fica unstyled. Operadores que querem
+    # sobrescrever o tema com customizacao propria adicionam o volume
+    # explicitamente via dex.volumes em seu values, junto com a
+    # ConfigMap `openzro-dex-theme` no mesmo namespace.
     - name: dex-grpc-certs
       secret:
         secretName: openzro-dex-grpc
@@ -1973,9 +1968,6 @@ dex:
     #   persistentVolumeClaim:
     #     claimName: openzro-dex-data
   volumeMounts:
-    - name: openzro-theme
-      mountPath: /srv/dex/web/themes/openzro
-      readOnly: true
     - name: dex-grpc-certs
       mountPath: /etc/dex/grpc-certs
       readOnly: true
