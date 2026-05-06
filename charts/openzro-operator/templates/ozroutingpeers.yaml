@@ -3,7 +3,7 @@
 {{ $defaults := .Values.ingress.router }}
 {{ range $k, $v := .Values.ingress.router.namespaces }}
 apiVersion: openzro.io/v1
-kind: NBRoutingPeer
+kind: OZRoutingPeer
 metadata:
   finalizers:
     - openzro.io/cleanup
@@ -46,7 +46,7 @@ spec:
 {{- else }}
 {{- with .Values.ingress.router }}
 apiVersion: openzro.io/v1
-kind: NBRoutingPeer
+kind: OZRoutingPeer
 metadata:
   finalizers:
     - openzro.io/cleanup

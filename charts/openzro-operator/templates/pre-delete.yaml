@@ -28,7 +28,7 @@
 {{/*          - sh*/}}
 {{/*          - -c*/}}
 {{/*        args:*/}}
-{{/*          - kubectl get NBRoutingPeer -A --no-headers -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name | while read "L"; do kubectl patch --type=json -p '[{"op":"replace","path":"/spec/disableDeployment","value":true}]' NBRoutingPeer -n $(echo "$L" | awk '{print $1}') $(echo "$L" | awk '{print $2}'); done*/}}
+{{/*          - kubectl get OZRoutingPeer -A --no-headers -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name | while read "L"; do kubectl patch --type=json -p '[{"op":"replace","path":"/spec/disableDeployment","value":true}]' OZRoutingPeer -n $(echo "$L" | awk '{print $1}') $(echo "$L" | awk '{print $2}'); done*/}}
 {{/*      - name: delete-wait*/}}
 {{/*        image: "openzro/kubectl:latest"*/}}
 {{/*        imagePullPolicy: {{ .Values.operator.image.pullPolicy }}*/}}
@@ -36,6 +36,6 @@
 {{/*          - sh*/}}
 {{/*          - -c*/}}
 {{/*        args:*/}}
-{{/*          - kubectl get NBRoutingPeer -A --no-headers -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name | while read "L"; do kubectl wait --for=delete deployment -n $(echo "$L" | awk '{print $1}') $(echo "$L" | awk '{print $2}'); done*/}}
+{{/*          - kubectl get OZRoutingPeer -A --no-headers -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name | while read "L"; do kubectl wait --for=delete deployment -n $(echo "$L" | awk '{print $1}') $(echo "$L" | awk '{print $2}'); done*/}}
 {{/*      serviceAccountName: {{ include "openzro-operator.serviceAccountName" . }}*/}}
 {{/*      restartPolicy: Never*/}}

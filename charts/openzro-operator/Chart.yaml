@@ -2,9 +2,10 @@ apiVersion: v2
 name: openzro-operator
 description: openZro Kubernetes Operator — reconciles peers, groups, policies, setup keys, and network resources from CRDs against an openZro management server.
 type: application
-# Version follows the operator's own SemVer in openzro/openzro-operator.
-# This copy is auto-sync'd via .github/workflows/sync-operator-charts.yml
-# from openzro/openzro-operator/helm/openzro-operator/.
+# Chart version follows the operator's own SemVer. 0.3.2-alpha.1 is
+# the first openZro-fork release on top of upstream's BSD-3 v0.3.1
+# (NB* → OZ* rename + import-path realignment + API surface
+# backports against openzro/openzro v0.53.1-alpha.1).
 version: "0.3.2-alpha.1"
 appVersion: "0.3.2-alpha.1"
 home: https://openzro.io/
