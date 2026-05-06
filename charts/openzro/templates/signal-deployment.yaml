@@ -50,6 +50,7 @@ spec:
             - "{{ .Values.signal.logLevel }}"
             - "--log-file"
             - "console"
+            {{- include "openzro.signal.tls.args" . | nindent 12 }}
           env:
           {{- include "openzro.cluster.env" (dict "ctx" . "component" "signal" "replicas" .Values.signal.replicaCount) | nindent 12 }}
           ports:
@@ -87,13 +88,25 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.signal.resources | nindent 12 }}
-          {{- if .Values.signal.volumeMounts }}
+          {{- $tlsMount := include "openzro.signal.tls.volumeMount" . }}
+          {{- if or .Values.signal.volumeMounts (trim $tlsMount) }}
           volumeMounts:
-          {{- .Values.signal.volumeMounts | toYaml | nindent 12 }}
+          {{- with .Values.signal.volumeMounts }}
+          {{- . | toYaml | nindent 12 }}
           {{- end }}
-      {{- if  .Values.signal.volumes }}
+          {{- with trim $tlsMount }}
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+      {{- $tlsVol := include "openzro.signal.tls.volume" . }}
+      {{- if or .Values.signal.volumes (trim $tlsVol) }}
       volumes:
-      {{- .Values.signal.volumes | toYaml | nindent 8 }}
+      {{- with .Values.signal.volumes }}
+      {{- . | toYaml | nindent 8 }}
+      {{- end }}
+      {{- with trim $tlsVol }}
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.signal.nodeSelector }}
       nodeSelector:

@@ -1,0 +1,65 @@
+{{- /*
+Renders a cert-manager Certificate CRD pointing at an existing
+Issuer/ClusterIssuer when signal.tls.certManager.enabled=true. Mirror
+of templates/relay-certificate.yaml — same shape, different component.
+
+When this template renders, the signal deployment automatically mounts
+the Secret on /etc/openzro-signal/tls and the signal binary picks it up
+via --cert-file / --cert-key.
+
+Why signal needs TLS at the binary (not just at an Ingress):
+ingress-nginx (community) has a long-standing bug forwarding
+gRPC server-streaming initial metadata — the peer client opens the
+ConnectStream and never receives the `x-wiretrustee-peer-registered`
+header that signal sends immediately. Issue #5366 from 2020 was never
+fixed, project archived 2026-03. Operators on ingress-nginx must
+expose signal as a Service of type LoadBalancer with TLS terminated on
+the signal binary itself; alternative ingress controllers (Envoy,
+Traefik, NGINX-Plus) handle the streaming correctly and can keep using
+signal.ingress.
+
+Skipped entirely when:
+  - signal.enabled=false
+  - signal.tls.enabled=false
+  - signal.tls.certManager.enabled=false  (operator brings their own Secret)
+*/ -}}
+{{- if and .Values.signal.enabled .Values.signal.tls.enabled .Values.signal.tls.certManager.enabled -}}
+{{- $cm := .Values.signal.tls.certManager -}}
+{{- if not $cm.issuerRef.name -}}
+{{- fail "signal.tls.certManager.enabled=true requires signal.tls.certManager.issuerRef.name (existing ClusterIssuer or Issuer)" -}}
+{{- end -}}
+{{- $dnsNames := $cm.dnsNames -}}
+{{- if and (not $dnsNames) .Values.signal.publicHostname -}}
+{{- $dnsNames = list .Values.signal.publicHostname -}}
+{{- end -}}
+{{- if not $dnsNames -}}
+{{- fail "signal.tls.certManager.enabled=true requires either signal.publicHostname or signal.tls.certManager.dnsNames to be set" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "openzro.signal.tls.secretName" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.signal.labels" . | nindent 4 }}
+  {{- with $cm.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "openzro.signal.tls.secretName" . | quote }}
+  duration: {{ $cm.duration | quote }}
+  renewBefore: {{ $cm.renewBefore | quote }}
+  dnsNames:
+  {{- range $dnsNames }}
+    - {{ . | quote }}
+  {{- end }}
+  issuerRef:
+    kind: {{ $cm.issuerRef.kind | quote }}
+    name: {{ $cm.issuerRef.name | quote }}
+    group: cert-manager.io
+  {{- with $cm.privateKey }}
+  privateKey:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
