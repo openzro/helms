@@ -954,8 +954,81 @@ signal:
   ##
   containerPort: 80
 
+  ## @param signal.publicHostname Public hostname (or IP) used as the SAN
+  ## of the TLS cert + DNS to which peers connect. Required when signal.tls
+  ## is enabled. Example: signal.example.com
+  ##
+  ## When you expose signal as a `LoadBalancer` (recommended for production
+  ## under ingress-nginx — see comment on signal.tls below), the DNS for
+  ## this hostname must point at the LoadBalancer Service's external IP.
+  ##
+  publicHostname: ""
+
+  ## TLS termination on the signal binary itself. Necessary when running
+  ## under ingress-nginx (community), which has a long-standing bug forwarding
+  ## gRPC server-streaming initial metadata — peers never receive the
+  ## `x-wiretrustee-peer-registered` header and the connection times out.
+  ## Issue #5366 (open since 2020, project archived 2026-03 with no fix).
+  ##
+  ## Setup: signal.service.type=LoadBalancer + signal.tls.enabled=true +
+  ## DNS for signal.publicHostname pointing at the LB external IP. Operators
+  ## on Envoy/Traefik/NGINX-Plus controllers can keep using signal.ingress
+  ## (those handle streaming correctly).
+  ##
+  ## Same shape as relay.tls — see comments there for the certManager vs
+  ## existingSecret tradeoff.
+  ##
+  tls:
+    ## @param signal.tls.enabled Wire TLS into the signal listener.
+    enabled: false
+
+    ## @param signal.tls.existingSecret Tls-typed Secret name (consulted only
+    ## when certManager.enabled=false).
+    existingSecret: ""
+
+    secretKeys:
+      ## @param signal.tls.secretKeys.cert Cert key inside the Secret.
+      cert: tls.crt
+      ## @param signal.tls.secretKeys.key  Private key inside the Secret.
+      key: tls.key
+
+    ## @param signal.tls.mountPath Mount path inside the signal pod.
+    mountPath: /etc/openzro-signal/tls
+
+    certManager:
+      ## @param signal.tls.certManager.enabled Render a cert-manager Certificate
+      ## CRD pointing at an existing (Cluster)Issuer.
+      enabled: false
+
+      issuerRef:
+        ## @param signal.tls.certManager.issuerRef.kind ClusterIssuer | Issuer.
+        kind: ClusterIssuer
+        ## @param signal.tls.certManager.issuerRef.name Existing (Cluster)Issuer name.
+        name: ""
+
+      ## @param signal.tls.certManager.duration Cert validity (default 90d).
+      duration: 2160h
+      ## @param signal.tls.certManager.renewBefore Renew lead time (default 15d).
+      renewBefore: 360h
+
+      ## @param signal.tls.certManager.dnsNames SANs (defaults to [signal.publicHostname]).
+      dnsNames: []
+
+      ## @param signal.tls.certManager.secretName Cert-manager-populated Secret name.
+      ## Defaults to "<release>-signal-tls".
+      secretName: ""
+
+      ## @param signal.tls.certManager.privateKey Private key options for the Certificate.
+      privateKey: {}
+
+      ## @param signal.tls.certManager.annotations Extra annotations for the Certificate CRD.
+      annotations: {}
+
   service:
     ## @param signal.service.type Service type for the signal component.
+    ## ClusterIP for in-cluster only (typical when signal.ingress.enabled=true).
+    ## LoadBalancer for direct-exposure + signal.tls (production under
+    ## ingress-nginx — see comment on signal.tls).
     ##
     type: ClusterIP
 

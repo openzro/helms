@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.30](https://img.shields.io/badge/Version-2.1.0--alpha.30-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
+![Version: 2.1.0-alpha.31](https://img.shields.io/badge/Version-2.1.0--alpha.31-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -714,6 +714,7 @@ The most-tweaked groups during a real install:
 | signal.pdb.minAvailable | int | `1` |  |
 | signal.podAnnotations | object | `{}` |  |
 | signal.podSecurityContext | object | `{}` |  |
+| signal.publicHostname | string | `""` |  |
 | signal.readinessProbe.failureThreshold | int | `3` |  |
 | signal.readinessProbe.initialDelaySeconds | int | `5` |  |
 | signal.readinessProbe.periodSeconds | int | `10` |  |
@@ -738,6 +739,20 @@ The most-tweaked groups during a real install:
 | signal.startupProbe.tcpSocket.port | string | `"grpc"` |  |
 | signal.startupProbe.timeoutSeconds | int | `3` |  |
 | signal.terminationGracePeriodSeconds | int | `60` |  |
+| signal.tls.certManager.annotations | object | `{}` |  |
+| signal.tls.certManager.dnsNames | list | `[]` |  |
+| signal.tls.certManager.duration | string | `"2160h"` |  |
+| signal.tls.certManager.enabled | bool | `false` |  |
+| signal.tls.certManager.issuerRef.kind | string | `"ClusterIssuer"` |  |
+| signal.tls.certManager.issuerRef.name | string | `""` |  |
+| signal.tls.certManager.privateKey | object | `{}` |  |
+| signal.tls.certManager.renewBefore | string | `"360h"` |  |
+| signal.tls.certManager.secretName | string | `""` |  |
+| signal.tls.enabled | bool | `false` |  |
+| signal.tls.existingSecret | string | `""` |  |
+| signal.tls.mountPath | string | `"/etc/openzro-signal/tls"` |  |
+| signal.tls.secretKeys.cert | string | `"tls.crt"` |  |
+| signal.tls.secretKeys.key | string | `"tls.key"` |  |
 | signal.tolerations | list | `[]` |  |
 | signal.volumeMounts | list | `[]` |  |
 | signal.volumes | list | `[]` |  |

@@ -262,6 +262,69 @@ The mount is read-only because the relay only consumes the cert and key.
 {{- end -}}
 
 {{/*
+Signal TLS plumbing. Mirror of relay.tls.* — same shape, different
+component. Use case: signal exposed as LoadBalancer (bypassing
+ingress-nginx) and terminating TLS at the signal binary itself.
+Necessary for production gRPC server streaming because ingress-nginx
+community has a long-standing bug with initial metadata not flushing
+on bidi streams (issue #5366, project archived 2026-03 with no fix).
+
+`openzro.signal.tls.secretName` returns the Secret name that holds
+the TLS key/cert pair the signal pod mounts. Same priority as relay:
+certManager.enabled → chart-rendered Certificate CRD; existingSecret
+→ operator's Secret; else empty.
+*/}}
+{{- define "openzro.signal.tls.secretName" -}}
+{{- $tls := .Values.signal.tls -}}
+{{- if and $tls.certManager.enabled $tls.certManager.secretName -}}
+{{- $tls.certManager.secretName -}}
+{{- else if $tls.certManager.enabled -}}
+{{- printf "%s-signal-tls" (include "openzro.fullname" .) -}}
+{{- else if $tls.existingSecret -}}
+{{- $tls.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+TLS env / volume / volumeMount fragments — empty when signal.tls.enabled=false.
+The deployment template can splice them unconditionally.
+*/}}
+{{- define "openzro.signal.tls.args" -}}
+{{- if .Values.signal.tls.enabled }}
+- "--cert-file"
+- {{ printf "%s/%s" .Values.signal.tls.mountPath .Values.signal.tls.secretKeys.cert | quote }}
+- "--cert-key"
+- {{ printf "%s/%s" .Values.signal.tls.mountPath .Values.signal.tls.secretKeys.key | quote }}
+{{- end -}}
+{{- end -}}
+
+{{- define "openzro.signal.tls.volumeMount" -}}
+{{- if .Values.signal.tls.enabled }}
+- name: signal-tls
+  mountPath: {{ .Values.signal.tls.mountPath | quote }}
+  readOnly: true
+{{- end -}}
+{{- end -}}
+
+{{- define "openzro.signal.tls.volume" -}}
+{{- if .Values.signal.tls.enabled }}
+- name: signal-tls
+  secret:
+    secretName: {{ include "openzro.signal.tls.secretName" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+URL scheme for management.config.signal.proto when auto-derive applies.
+`https` when signal.tls.enabled, else fall back to whatever the operator
+sets in management.config.signal.proto (default https — chart never
+overrides operator's explicit value).
+*/}}
+{{- define "openzro.signal.tls.scheme" -}}
+{{- if .Values.signal.tls.enabled -}}https{{- else -}}http{{- end -}}
+{{- end -}}
+
+{{/*
 NATS connection URL for `cluster.mode=external`. Order of resolution:
   1. `cluster.external.url` — explicit operator override
   2. `nats.enabled=true` — auto-derive from the bundled subchart at
