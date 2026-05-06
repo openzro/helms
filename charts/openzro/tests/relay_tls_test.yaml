@@ -1,0 +1,191 @@
+suite: relay TLS termination
+templates:
+  - relay-deployment.yaml
+  - relay-certificate.yaml
+  - management-secret.yaml
+
+tests:
+  # ── default: TLS off, rel:// scheme, no extra envs ─────────────────────────
+
+  - it: rel:// scheme used in management config when relay.tls.enabled=false
+    template: management-secret.yaml
+    set:
+      ingress.host: vpn.example.com
+      relay.publicHostname: relay.example.com
+    asserts:
+      - matchRegex:
+          path: stringData["management.json"]
+          pattern: 'rel://relay\.example\.com:33080'
+
+  - it: relay deployment has no OZ_TLS env vars by default
+    template: relay-deployment.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env
+          pattern: 'OZ_TLS_'
+
+  - it: relay-certificate is suppressed by default
+    template: relay-certificate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── existingSecret path ────────────────────────────────────────────────────
+
+  - it: rels:// scheme used when relay.tls.enabled=true
+    template: management-secret.yaml
+    set:
+      ingress.host: vpn.example.com
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.existingSecret: my-relay-tls
+    asserts:
+      - matchRegex:
+          path: stringData["management.json"]
+          pattern: 'rels://relay\.example\.com:33080'
+
+  - it: relay deployment wires OZ_TLS_CERT_FILE / OZ_TLS_KEY_FILE
+    template: relay-deployment.yaml
+    set:
+      relay.tls.enabled: true
+      relay.tls.existingSecret: my-relay-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OZ_TLS_CERT_FILE
+            value: /etc/openzro-relay/tls/tls.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OZ_TLS_KEY_FILE
+            value: /etc/openzro-relay/tls/tls.key
+
+  - it: relay deployment mounts the existingSecret read-only
+    template: relay-deployment.yaml
+    set:
+      relay.tls.enabled: true
+      relay.tls.existingSecret: my-relay-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: relay-tls
+            mountPath: /etc/openzro-relay/tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: relay-tls
+            secret:
+              secretName: my-relay-tls
+
+  - it: relay-certificate is NOT rendered when certManager.enabled=false
+    template: relay-certificate.yaml
+    set:
+      relay.tls.enabled: true
+      relay.tls.existingSecret: my-relay-tls
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── certManager path ───────────────────────────────────────────────────────
+
+  - it: relay-certificate renders Certificate CRD with default secret name
+    template: relay-certificate.yaml
+    set:
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+      relay.tls.certManager.issuerRef.name: letsencrypt-prod
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - equal:
+          path: apiVersion
+          value: cert-manager.io/v1
+      - equal:
+          path: spec.secretName
+          value: RELEASE-NAME-openzro-relay-tls
+      - equal:
+          path: spec.dnsNames[0]
+          value: relay.example.com
+      - equal:
+          path: spec.issuerRef.kind
+          value: ClusterIssuer
+      - equal:
+          path: spec.issuerRef.name
+          value: letsencrypt-prod
+
+  - it: relay-certificate honours certManager.dnsNames override
+    template: relay-certificate.yaml
+    set:
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+      relay.tls.certManager.issuerRef.name: letsencrypt-prod
+      relay.tls.certManager.dnsNames:
+        - relay.example.com
+        - relay-eu.example.com
+    asserts:
+      - equal:
+          path: spec.dnsNames
+          value:
+            - relay.example.com
+            - relay-eu.example.com
+
+  - it: relay-certificate honours custom secretName + Issuer (namespace-scoped)
+    template: relay-certificate.yaml
+    set:
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+      relay.tls.certManager.issuerRef.kind: Issuer
+      relay.tls.certManager.issuerRef.name: ns-issuer
+      relay.tls.certManager.secretName: custom-relay-tls
+    asserts:
+      - equal:
+          path: spec.secretName
+          value: custom-relay-tls
+      - equal:
+          path: spec.issuerRef.kind
+          value: Issuer
+
+  - it: relay deployment mounts the cert-manager-managed Secret
+    template: relay-deployment.yaml
+    set:
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+      relay.tls.certManager.issuerRef.name: letsencrypt-prod
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: relay-tls
+            secret:
+              secretName: RELEASE-NAME-openzro-relay-tls
+
+  # ── failure modes ──────────────────────────────────────────────────────────
+
+  - it: certManager.enabled=true without issuerRef.name fails fast
+    template: relay-certificate.yaml
+    set:
+      relay.publicHostname: relay.example.com
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "relay.tls.certManager.enabled=true requires relay.tls.certManager.issuerRef.name (existing ClusterIssuer or Issuer)"
+
+  - it: certManager.enabled=true without publicHostname or dnsNames fails fast
+    template: relay-certificate.yaml
+    set:
+      relay.tls.enabled: true
+      relay.tls.certManager.enabled: true
+      relay.tls.certManager.issuerRef.name: letsencrypt-prod
+    asserts:
+      - failedTemplate:
+          errorMessage: "relay.tls.certManager.enabled=true requires either relay.publicHostname or relay.tls.certManager.dnsNames to be set"

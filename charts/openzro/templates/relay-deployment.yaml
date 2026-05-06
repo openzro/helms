@@ -72,7 +72,8 @@ spec:
           resources:
             {{- toYaml .Values.relay.resources | nindent 12 }}
           {{- $clusterEnv := include "openzro.relay.cluster.env" . }}
-          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) (trim $clusterEnv) }}
+          {{- $tlsEnv := include "openzro.relay.tls.env" . }}
+          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) (trim $clusterEnv) (trim $tlsEnv) }}
           env:
           {{- range $key, $val := .Values.relay.env }}
             - name: {{ $key }}
@@ -93,14 +94,29 @@ spec:
           {{- with trim $clusterEnv }}
             {{- . | nindent 12 }}
           {{- end }}
+          {{- with trim $tlsEnv }}
+            {{- . | nindent 12 }}
           {{- end }}
-          {{- if .Values.relay.volumeMounts }}
+          {{- end }}
+          {{- $tlsMount := include "openzro.relay.tls.volumeMount" . }}
+          {{- if or .Values.relay.volumeMounts (trim $tlsMount) }}
           volumeMounts:
-          {{- .Values.relay.volumeMounts | toYaml | nindent 12 }}
+          {{- with .Values.relay.volumeMounts }}
+          {{- . | toYaml | nindent 12 }}
           {{- end }}
-      {{- if  .Values.relay.volumes }}
+          {{- with trim $tlsMount }}
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+      {{- $tlsVol := include "openzro.relay.tls.volume" . }}
+      {{- if or .Values.relay.volumes (trim $tlsVol) }}
       volumes:
-      {{- .Values.relay.volumes | toYaml | nindent 8 }}
+      {{- with .Values.relay.volumes }}
+      {{- . | toYaml | nindent 8 }}
+      {{- end }}
+      {{- with trim $tlsVol }}
+        {{- . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.relay.nodeSelector }}
       nodeSelector:

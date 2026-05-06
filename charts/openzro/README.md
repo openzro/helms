@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.17](https://img.shields.io/badge/Version-2.1.0--alpha.17-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
+![Version: 2.1.0-alpha.19](https://img.shields.io/badge/Version-2.1.0--alpha.19-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -628,7 +628,6 @@ The most-tweaked groups during a real install:
 | relay.image.repository | string | `"ghcr.io/openzro/relay"` |  |
 | relay.image.tag | string | `""` |  |
 | relay.imagePullSecrets | list | `[]` |  |
-| relay.publicHostname | string | `""` | Public hostname or IP for the relay. Used to auto-build the rel:// address advertised to peers. Expose via `relay.service.type: LoadBalancer` (TCP; Ingress is not supported). |
 | relay.livenessProbe.failureThreshold | int | `3` |  |
 | relay.livenessProbe.initialDelaySeconds | int | `5` |  |
 | relay.livenessProbe.periodSeconds | int | `10` |  |
@@ -643,6 +642,7 @@ The most-tweaked groups during a real install:
 | relay.pdb.minAvailable | int | `1` |  |
 | relay.podAnnotations | object | `{}` |  |
 | relay.podSecurityContext | object | `{}` |  |
+| relay.publicHostname | string | `""` |  |
 | relay.readinessProbe.failureThreshold | int | `3` |  |
 | relay.readinessProbe.initialDelaySeconds | int | `5` |  |
 | relay.readinessProbe.periodSeconds | int | `10` |  |
@@ -667,6 +667,20 @@ The most-tweaked groups during a real install:
 | relay.startupProbe.tcpSocket.port | string | `"http"` |  |
 | relay.startupProbe.timeoutSeconds | int | `3` |  |
 | relay.terminationGracePeriodSeconds | int | `60` |  |
+| relay.tls.certManager.annotations | object | `{}` |  |
+| relay.tls.certManager.dnsNames | list | `[]` |  |
+| relay.tls.certManager.duration | string | `"2160h"` |  |
+| relay.tls.certManager.enabled | bool | `false` |  |
+| relay.tls.certManager.issuerRef.kind | string | `"ClusterIssuer"` |  |
+| relay.tls.certManager.issuerRef.name | string | `""` |  |
+| relay.tls.certManager.privateKey | object | `{}` |  |
+| relay.tls.certManager.renewBefore | string | `"360h"` |  |
+| relay.tls.certManager.secretName | string | `""` |  |
+| relay.tls.enabled | bool | `false` |  |
+| relay.tls.existingSecret | string | `""` |  |
+| relay.tls.mountPath | string | `"/etc/openzro-relay/tls"` |  |
+| relay.tls.secretKeys.cert | string | `"tls.crt"` |  |
+| relay.tls.secretKeys.key | string | `"tls.key"` |  |
 | relay.tolerations | list | `[]` |  |
 | relay.volumeMounts | list | `[]` |  |
 | relay.volumes | list | `[]` |  |

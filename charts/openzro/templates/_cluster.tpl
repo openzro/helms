@@ -145,6 +145,85 @@ can dial back without depending on ephemeral source ports.
 {{- end -}}
 
 {{/*
+Relay TLS plumbing.
+
+`openzro.relay.tls.secretName` — Secret the relay pod mounts. Three sources,
+in priority order:
+  1. relay.tls.certManager.enabled=true → cert-manager populates the Secret
+     whose name we own here (default `<fullname>-relay-tls`, override via
+     relay.tls.certManager.secretName).
+  2. relay.tls.existingSecret set → operator-managed Secret.
+  3. else → empty string. Callers must guard with `relay.tls.enabled` first;
+     this helper does NOT short-circuit on enabled=false because it is also
+     used by relay-certificate.yaml at render time.
+*/}}
+{{- define "openzro.relay.tls.secretName" -}}
+{{- $tls := .Values.relay.tls -}}
+{{- if and $tls.certManager.enabled $tls.certManager.secretName -}}
+{{- $tls.certManager.secretName -}}
+{{- else if $tls.certManager.enabled -}}
+{{- printf "%s-relay-tls" (include "openzro.fullname" .) -}}
+{{- else if $tls.existingSecret -}}
+{{- $tls.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+DNS names for the Certificate CRD. Falls back to [relay.publicHostname]
+when relay.tls.certManager.dnsNames is empty — the typical single-host case.
+Empty publicHostname plus empty dnsNames is a config error (caught in NOTES).
+*/}}
+{{- define "openzro.relay.tls.dnsNames" -}}
+{{- $dn := .Values.relay.tls.certManager.dnsNames -}}
+{{- if and (not $dn) .Values.relay.publicHostname -}}
+{{- $dn = list .Values.relay.publicHostname -}}
+{{- end -}}
+{{- toYaml $dn -}}
+{{- end -}}
+
+{{/*
+URL scheme advertised in management.config.relay.addresses. `rels://` when
+TLS is on (peers do TLS handshake), `rel://` when off. Plain string output
+so callers can compose with printf.
+*/}}
+{{- define "openzro.relay.tls.scheme" -}}
+{{- if .Values.relay.tls.enabled -}}rels{{- else -}}rel{{- end -}}
+{{- end -}}
+
+{{/*
+TLS-related env vars for the relay container. Empty when tls.enabled=false
+so the deployment template can splice it in unconditionally.
+*/}}
+{{- define "openzro.relay.tls.env" -}}
+{{- if .Values.relay.tls.enabled }}
+- name: OZ_TLS_CERT_FILE
+  value: {{ printf "%s/%s" .Values.relay.tls.mountPath .Values.relay.tls.secretKeys.cert | quote }}
+- name: OZ_TLS_KEY_FILE
+  value: {{ printf "%s/%s" .Values.relay.tls.mountPath .Values.relay.tls.secretKeys.key | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Volume + volumeMount fragments for the TLS Secret. Empty when tls.enabled=false.
+The mount is read-only because the relay only consumes the cert and key.
+*/}}
+{{- define "openzro.relay.tls.volumeMount" -}}
+{{- if .Values.relay.tls.enabled }}
+- name: relay-tls
+  mountPath: {{ .Values.relay.tls.mountPath | quote }}
+  readOnly: true
+{{- end -}}
+{{- end -}}
+
+{{- define "openzro.relay.tls.volume" -}}
+{{- if .Values.relay.tls.enabled }}
+- name: relay-tls
+  secret:
+    secretName: {{ include "openzro.relay.tls.secretName" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 NATS connection URL for `cluster.mode=external`. Order of resolution:
   1. `cluster.external.url` — explicit operator override
   2. `nats.enabled=true` — auto-derive from the bundled subchart at
