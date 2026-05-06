@@ -1,11 +1,19 @@
+{{- /*
+   gRPC Ingress para o management. Aponta SEMPRE para o Service gRPC
+   (porta `management.serviceGrpc.port`, default 33073) — NGINX com
+   `backend-protocol: GRPC` envia HTTP/2 frames, e o Service HTTP
+   (porta 80) responde HTTP/1 → 502 Bad Gateway com content-type text/html.
+
+   A flag legacy `management.useBackwardsGrpcService` foi removida em
+   2.1.0-alpha.28 — operadores que querem apontar para outro Service/porta
+   sobrescrevem via `management.ingressGrpc.backendService` /
+   `management.ingressGrpc.backendPort`.
+*/ -}}
 {{- if .Values.management.enabled -}}
 {{- if .Values.management.ingressGrpc.enabled -}}
 {{- $fullName := printf "%s-management-grpc" (include "openzro.fullname" .) -}}
-{{- $useBackwardsGrpcService := .Values.management.useBackwardsGrpcService -}}
-{{- $svcNameGrpc := printf "%s-management-grpc" (include "openzro.fullname" .) -}}
-{{- $svcPortGrpc := .Values.management.serviceGrpc.port -}}
-{{- $svcName := printf "%s-management" (include "openzro.fullname" .) -}}
-{{- $svcPort := .Values.management.service.port -}}
+{{- $svcName := .Values.management.ingressGrpc.backendService | default (printf "%s-management-grpc" (include "openzro.fullname" .)) -}}
+{{- $svcPort := .Values.management.ingressGrpc.backendPort | default .Values.management.serviceGrpc.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -39,9 +47,9 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ if $useBackwardsGrpcService }}{{ $svcNameGrpc }}{{ else }}{{ $svcName }}{{ end }}
+                name: {{ $svcName }}
                 port:
-                  number: {{ if $useBackwardsGrpcService }}{{ $svcPortGrpc }}{{ else }}{{ $svcPort }}{{ end }}
+                  number: {{ $svcPort }}
           {{- end }}
     {{- end }}
 {{- end }}
