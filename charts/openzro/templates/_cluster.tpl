@@ -48,13 +48,19 @@ Usage: {{ include "openzro.cluster.peers" (dict "ctx" . "component" "management"
 {{- $svc := include "openzro.cluster.headlessSvc" (dict "ctx" $ctx "component" $component) -}}
 {{- $port := $ctx.Values.cluster.embedded.clusterPort -}}
 {{- $fullname := include "openzro.fullname" $ctx -}}
+{{- $namespace := include "openzro.namespace" $ctx -}}
 {{- $peers := list -}}
 {{- range $i, $_ := until $replicas -}}
-{{- /* `nats://` é o único scheme que o cluster.embedded.embedded.go
-       aceita ao parsear ClusterPeers. NATS server propriamente dito
-       também aceita `nats-route://` mas a guarda do binário do signal
-       rejeita antes de chegar lá. */}}
-{{- $peer := printf "nats://%s-%s-%d.%s:%v" $fullname $component $i $svc $port -}}
+{{- /* `nats://` é o único scheme que cluster/embedded/embedded.go aceita
+       ao parsear ClusterPeers. NATS server tambem aceita `nats-route://`
+       mas a guarda do binario rejeita antes.
+
+       FQDN completo `<pod>.<headless-svc>.<ns>.svc.cluster.local` necessario
+       em clusters onde o resolv.conf do pod tem search list que não inclui
+       `<ns>.svc.cluster.local` primeiro — ex: GKE VPC-native que injeta
+       search domains GCE-specific antes do K8s default. Short name
+       `<pod>.<headless-svc>` retornava NXDOMAIN nesses ambientes. */}}
+{{- $peer := printf "nats://%s-%s-%d.%s.%s.svc.cluster.local:%v" $fullname $component $i $svc $namespace $port -}}
 {{- $peers = append $peers $peer -}}
 {{- end -}}
 {{- join "," $peers -}}
