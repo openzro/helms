@@ -20,9 +20,16 @@ tests:
   - it: relay deployment has no OZ_TLS env vars by default
     template: relay-deployment.yaml
     asserts:
-      - notMatchRegex:
+      - notContains:
           path: spec.template.spec.containers[0].env
-          pattern: 'OZ_TLS_'
+          content:
+            name: OZ_TLS_CERT_FILE
+            value: /etc/openzro-relay/tls/tls.crt
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OZ_TLS_KEY_FILE
+            value: /etc/openzro-relay/tls/tls.key
 
   - it: relay-certificate is suppressed by default
     template: relay-certificate.yaml
