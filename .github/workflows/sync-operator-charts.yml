@@ -94,7 +94,10 @@ jobs:
       - name: Create PR
         if: steps.version-check.outputs.changed == 'true' && steps.check-pr.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.CHART_SYNC_TOKEN }}
+          # CHART_SYNC_TOKEN é um PAT opcional — sem ele, PRs criados pelo
+          # GITHUB_TOKEN não disparam workflow_run nos status checks, mas
+          # ao menos o PR é aberto. Fallback evita exit 4 (gh CLI sem token).
+          GH_TOKEN: ${{ secrets.CHART_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           BRANCH="sync/operator-charts-${{ steps.sync.outputs.upstream_sha }}"
           OPERATOR_VERSION="${{ steps.sync.outputs.operator_version }}"
