@@ -649,7 +649,11 @@ management:
   # runAsUser: 65534
   # runAsUser: 1000
 
-  ## @param management.useBackwardsGrpcService Use the backwards-compatible GRPC service.
+  ## @param management.useBackwardsGrpcService DEPRECATED em 2.1.0-alpha.28+ — no-op.
+  ## A flag tinha semantica invertida e gerava 503 quando default false. Foi
+  ## removida do management-ingress-grpc.yaml e management-service-grpc.yaml
+  ## (Service e Ingress sempre criados). Mantida apenas para nao quebrar
+  ## values existentes que a setam.
   useBackwardsGrpcService: false
 
   metrics:

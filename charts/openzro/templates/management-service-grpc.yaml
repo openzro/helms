@@ -1,4 +1,13 @@
-{{- if and .Values.management.enabled .Values.management.useBackwardsGrpcService -}}
+{{- /*
+   Service de gRPC do management (porta 33073). Sempre criado quando
+   management.enabled=true — antes era gateado pela flag legacy
+   `useBackwardsGrpcService` que coexistia com a flag homonima do
+   Ingress, criando um caso patologico: a Ingress (default false → port 80)
+   apontava para um Service que nao existia (default false), e mesmo
+   quando o Ingress foi corrigido em alpha.28 ainda batia em 503
+   porque o Service exigia opt-in. Sempre criar.
+*/ -}}
+{{- if .Values.management.enabled -}}
 apiVersion: v1
 kind: Service
 metadata:
