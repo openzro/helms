@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.22](https://img.shields.io/badge/Version-2.1.0--alpha.22-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
+![Version: 2.1.0-alpha.23](https://img.shields.io/badge/Version-2.1.0--alpha.23-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -288,7 +288,7 @@ The most-tweaked groups during a real install:
 | dashboard.pdb.minAvailable | int | `1` |  |
 | dashboard.podAnnotations | object | `{}` |  |
 | dashboard.podCommand.args | list | `[]` |  |
-| dashboard.podSecurityContext | object | `{}` |  |
+| dashboard.podSecurityContext.fsGroup | int | `101` |  |
 | dashboard.readinessProbe.failureThreshold | int | `3` |  |
 | dashboard.readinessProbe.httpGet.path | string | `"/"` |  |
 | dashboard.readinessProbe.httpGet.port | string | `"http"` |  |
@@ -298,6 +298,10 @@ The most-tweaked groups during a real install:
 | dashboard.replicaCount | int | `1` |  |
 | dashboard.resources | object | `{}` |  |
 | dashboard.securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| dashboard.securityContext.capabilities.add[0] | string | `"CHOWN"` |  |
+| dashboard.securityContext.capabilities.add[1] | string | `"SETUID"` |  |
+| dashboard.securityContext.capabilities.add[2] | string | `"SETGID"` |  |
+| dashboard.securityContext.capabilities.add[3] | string | `"NET_BIND_SERVICE"` |  |
 | dashboard.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | dashboard.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | dashboard.service.annotations | object | `{}` |  |
