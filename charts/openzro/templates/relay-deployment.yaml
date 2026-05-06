@@ -71,10 +71,14 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.relay.resources | nindent 12 }}
+          {{- $coreEnv := include "openzro.relay.core.env" . }}
           {{- $clusterEnv := include "openzro.relay.cluster.env" . }}
           {{- $tlsEnv := include "openzro.relay.tls.env" . }}
-          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) (trim $clusterEnv) (trim $tlsEnv) }}
+          {{- if or (.Values.relay.env) (.Values.relay.envRaw) (.Values.relay.envFromSecret) (trim $coreEnv) (trim $clusterEnv) (trim $tlsEnv) }}
           env:
+          {{- with trim $coreEnv }}
+            {{- . | nindent 12 }}
+          {{- end }}
           {{- range $key, $val := .Values.relay.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

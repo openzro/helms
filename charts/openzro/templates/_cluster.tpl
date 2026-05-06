@@ -50,7 +50,11 @@ Usage: {{ include "openzro.cluster.peers" (dict "ctx" . "component" "management"
 {{- $fullname := include "openzro.fullname" $ctx -}}
 {{- $peers := list -}}
 {{- range $i, $_ := until $replicas -}}
-{{- $peer := printf "nats-route://%s-%s-%d.%s:%v" $fullname $component $i $svc $port -}}
+{{- /* `nats://` é o único scheme que o cluster.embedded.embedded.go
+       aceita ao parsear ClusterPeers. NATS server propriamente dito
+       também aceita `nats-route://` mas a guarda do binário do signal
+       rejeita antes de chegar lá. */}}
+{{- $peer := printf "nats://%s-%s-%d.%s:%v" $fullname $component $i $svc $port -}}
 {{- $peers = append $peers $peer -}}
 {{- end -}}
 {{- join "," $peers -}}
@@ -142,6 +146,28 @@ can dial back without depending on ephemeral source ports.
       name: {{ include "openzro.relay.cluster.authSecretName" . | quote }}
       key: {{ include "openzro.relay.cluster.authSecretKey" . | quote }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Core relay env — endereço público anunciado aos peers e auth secret
+HMAC compartilhado com management. Empty quando os values estão
+nulos, deixando o operador setar via relay.env/envRaw se quiser.
+
+OZ_EXPOSED_ADDRESS é construído de relay.publicHostname + service.port
+para bater com o `rels://` que o management distribui em management.json.
+
+OZ_AUTH_SECRET espelha management.config.relay.secret — sem isso o
+relay rejeita as credenciais que o management emite para os peers.
+*/}}
+{{- define "openzro.relay.core.env" -}}
+{{- if .Values.relay.publicHostname }}
+- name: OZ_EXPOSED_ADDRESS
+  value: {{ printf "%s:%d" .Values.relay.publicHostname (.Values.relay.service.port | int) | quote }}
+{{- end }}
+{{- with (dig "config" "relay" "secret" "" .Values.management) }}
+- name: OZ_AUTH_SECRET
+  value: {{ . | quote }}
+{{- end }}
 {{- end -}}
 
 {{/*

@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.20](https://img.shields.io/badge/Version-2.1.0--alpha.20-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
+![Version: 2.1.0-alpha.21](https://img.shields.io/badge/Version-2.1.0--alpha.21-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.37](https://img.shields.io/badge/AppVersion-0.53.1--alpha.37-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -324,9 +324,9 @@ The most-tweaked groups during a real install:
 | dex.config.frontend.issuer | string | `"openZro"` |  |
 | dex.config.frontend.theme | string | `"openzro"` |  |
 | dex.config.grpc.addr | string | `"0.0.0.0:5557"` |  |
-| dex.config.grpc.tlsCert | string | `"/etc/dex/grpc-certs/server.crt"` |  |
-| dex.config.grpc.tlsClientCA | string | `"/etc/dex/grpc-certs/ca.crt"` |  |
-| dex.config.grpc.tlsKey | string | `"/etc/dex/grpc-certs/server.key"` |  |
+| dex.config.grpc.tlsCert | string | `""` |  |
+| dex.config.grpc.tlsClientCA | string | `""` |  |
+| dex.config.grpc.tlsKey | string | `""` |  |
 | dex.config.issuer | string | `"https://openzro.example.com/dex"` |  |
 | dex.config.logger.format | string | `"text"` |  |
 | dex.config.logger.level | string | `"info"` |  |
