@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.27](https://img.shields.io/badge/Version-2.1.0--alpha.27-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
+![Version: 2.1.0-alpha.28](https://img.shields.io/badge/Version-2.1.0--alpha.28-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
 
 ## openZro Helm Chart
 
