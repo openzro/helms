@@ -1221,8 +1221,94 @@ relay:
   ## Example: relay.example.com
   ## When empty and management.config.relay.addresses is also empty, no relay address
   ## is injected — set this or management.config.relay.addresses explicitly.
+  ## Must match the SAN of relay.tls when TLS is enabled (otherwise WireGuard peers
+  ## reject the rels:// handshake).
   ##
   publicHostname: ""
+
+  ## TLS termination on the relay listener. The relay binary supports four cert
+  ## sources (file-based, Let's Encrypt HTTP-01, Let's Encrypt DNS-01 via Route53,
+  ## or none). The chart only wires the file-based path — combine with cert-manager
+  ## (idiomatic K8s) or any external Cert pipeline that ships a tls-typed Secret.
+  ##
+  ## Two ways to feed the cert:
+  ##
+  ##   1) certManager.enabled=true → chart renders a cert-manager Certificate CRD
+  ##      pointing at an existing (Cluster)Issuer. cert-manager populates the Secret;
+  ##      the relay deployment mounts it. Renewal is automatic.
+  ##
+  ##   2) certManager.enabled=false + existingSecret=<your-secret> → chart consumes
+  ##      a Secret you manage out-of-band (kubectl create secret tls, GitOps Cert
+  ##      pipeline, sealed-secrets, etc).
+  ##
+  ## When tls.enabled=false, the relay listens plaintext and the management config
+  ## advertises rel:// instead of rels://. Use only in lab/private-fabric setups.
+  ##
+  tls:
+    ## @param relay.tls.enabled Wire TLS into the relay listener.
+    ## When true the chart sets OZ_TLS_CERT_FILE / OZ_TLS_KEY_FILE on the pod and
+    ## flips the management-side rel:// scheme to rels://.
+    ##
+    enabled: false
+
+    ## @param relay.tls.existingSecret Name of a tls-typed Secret to mount.
+    ## Only consulted when certManager.enabled=false. When certManager.enabled=true,
+    ## the chart resolves the Secret name from certManager.secretName (or derives
+    ## a default).
+    ##
+    existingSecret: ""
+
+    secretKeys:
+      ## @param relay.tls.secretKeys.cert Key inside the Secret holding the certificate.
+      cert: tls.crt
+      ## @param relay.tls.secretKeys.key  Key inside the Secret holding the private key.
+      key: tls.key
+
+    ## @param relay.tls.mountPath Directory inside the relay pod where the Secret is mounted.
+    ## The pod env points OZ_TLS_CERT_FILE / OZ_TLS_KEY_FILE at <mountPath>/<secretKeys.*>.
+    ##
+    mountPath: /etc/openzro-relay/tls
+
+    certManager:
+      ## @param relay.tls.certManager.enabled Render a cert-manager Certificate CRD
+      ## pointing at an existing (Cluster)Issuer. Requires cert-manager already
+      ## installed in the cluster. The chart never creates Issuers — those are
+      ## cluster-wide and operator-owned (typically letsencrypt-prod / letsencrypt-staging).
+      ##
+      enabled: false
+
+      issuerRef:
+        ## @param relay.tls.certManager.issuerRef.kind ClusterIssuer (cluster-scoped) or Issuer (namespace-scoped).
+        kind: ClusterIssuer
+        ## @param relay.tls.certManager.issuerRef.name Name of the existing (Cluster)Issuer.
+        ## Required when certManager.enabled=true.
+        name: ""
+
+      ## @param relay.tls.certManager.duration Cert validity. Default 90d (Let's Encrypt max).
+      duration: 2160h
+      ## @param relay.tls.certManager.renewBefore Renew this far ahead of expiry. Default 15d.
+      renewBefore: 360h
+
+      ## @param relay.tls.certManager.dnsNames SANs for the Certificate.
+      ## When empty, falls back to [relay.publicHostname]. Set explicitly for multi-SAN
+      ## (e.g. [relay.example.com, relay-eu.example.com]).
+      dnsNames: []
+
+      ## @param relay.tls.certManager.secretName Name of the Secret cert-manager populates.
+      ## When empty, defaults to "<release>-relay-tls". The relay deployment
+      ## mounts this Secret automatically — no extra wiring needed.
+      ##
+      secretName: ""
+
+      ## @param relay.tls.certManager.privateKey Private key options for the Certificate.
+      ## See cert-manager docs (algorithm, encoding, size, rotationPolicy).
+      privateKey: {}
+      # algorithm: RSA
+      # size: 2048
+      # rotationPolicy: Always
+
+      ## @param relay.tls.certManager.annotations Extra annotations for the Certificate CRD.
+      annotations: {}
 
   service:
     ## @param relay.service.type Service type for the relay component.

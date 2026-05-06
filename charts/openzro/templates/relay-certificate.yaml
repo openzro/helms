@@ -1,0 +1,60 @@
+{{- /*
+Renders a cert-manager Certificate CRD pointing at an existing
+Issuer/ClusterIssuer when relay.tls.certManager.enabled=true.
+
+The chart never creates Issuers — those are cluster-scoped and operator-owned
+(typically letsencrypt-prod / letsencrypt-staging shared by every workload).
+We only own the Certificate CRD and the Secret name it materializes into.
+
+When this template renders, the relay deployment automatically mounts the
+Secret on /etc/openzro-relay/tls and the relay binary picks it up via
+OZ_TLS_CERT_FILE / OZ_TLS_KEY_FILE.
+
+Skipped entirely when:
+  - relay.enabled=false
+  - relay.tls.enabled=false
+  - relay.tls.certManager.enabled=false  (operator brings their own Secret)
+
+Validation: requires .name on the issuerRef and at least one DNS name (either
+relay.publicHostname or relay.tls.certManager.dnsNames).
+*/ -}}
+{{- if and .Values.relay.enabled .Values.relay.tls.enabled .Values.relay.tls.certManager.enabled -}}
+{{- $cm := .Values.relay.tls.certManager -}}
+{{- if not $cm.issuerRef.name -}}
+{{- fail "relay.tls.certManager.enabled=true requires relay.tls.certManager.issuerRef.name (existing ClusterIssuer or Issuer)" -}}
+{{- end -}}
+{{- $dnsNames := $cm.dnsNames -}}
+{{- if and (not $dnsNames) .Values.relay.publicHostname -}}
+{{- $dnsNames = list .Values.relay.publicHostname -}}
+{{- end -}}
+{{- if not $dnsNames -}}
+{{- fail "relay.tls.certManager.enabled=true requires either relay.publicHostname or relay.tls.certManager.dnsNames to be set" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "openzro.relay.tls.secretName" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.relay.labels" . | nindent 4 }}
+  {{- with $cm.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "openzro.relay.tls.secretName" . | quote }}
+  duration: {{ $cm.duration | quote }}
+  renewBefore: {{ $cm.renewBefore | quote }}
+  dnsNames:
+  {{- range $dnsNames }}
+    - {{ . | quote }}
+  {{- end }}
+  issuerRef:
+    kind: {{ $cm.issuerRef.kind | quote }}
+    name: {{ $cm.issuerRef.name | quote }}
+    group: cert-manager.io
+  {{- with $cm.privateKey }}
+  privateKey:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
