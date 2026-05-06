@@ -92,13 +92,31 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.dashboard.resources | nindent 12 }}
-          {{- if  .Values.dashboard.volumeMounts }}
+          {{- /*
+            Volumes nginx — necessários por causa do user split do nginx
+            Alpine (master root → workers `nginx`) e do filesystem read-only
+            que pode estar em vigor por padrão. Sempre montados; usuários
+            podem adicionar mais via dashboard.volumeMounts.
+          */}}
           volumeMounts:
-          {{- .Values.dashboard.volumeMounts | toYaml | nindent 12 }}
+            - name: nginx-tmp
+              mountPath: /var/lib/nginx/tmp
+            - name: nginx-log
+              mountPath: /var/log/nginx
+            - name: nginx-run
+              mountPath: /run/nginx
+          {{- with .Values.dashboard.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if  .Values.dashboard.volumes }}
       volumes:
-      {{- .Values.dashboard.volumes | toYaml | nindent 8 }}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-log
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+      {{- with .Values.dashboard.volumes }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.dashboard.nodeSelector }}
       nodeSelector:

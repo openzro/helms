@@ -1465,18 +1465,32 @@ dashboard:
   ## ref:
   ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param podSecurityContext
-  podSecurityContext: {}
-  # fsGroup: 2000
+  ## fsGroup=101 corresponde ao group `nginx` na imagem (Alpine, gid 101).
+  ## Necessário para que os volumes (logs/tmp/pid em emptyDir) fiquem
+  ## chowned para o group nginx — caso contrário os workers (gid 101)
+  ## não conseguem escrever nos emptyDirs vindo do chart.
+  podSecurityContext:
+    fsGroup: 101
 
   ## Configure Container Security Context
   ## ref:
   ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param dashboard.securityContext
+  ## nginx precisa de quatro capabilities além de drop=[ALL]:
+  ##   CHOWN            — chown dos tmp dirs para o user nginx
+  ##   SETUID + SETGID  — master forka workers como user `nginx`
+  ##   NET_BIND_SERVICE — bind em porta privilegiada (:80)
+  ## Sem isso o pod fica em CrashLoopBackOff com "operation not permitted".
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
+      add:
+        - CHOWN
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
     seccompProfile:
       type: RuntimeDefault
   # readOnlyRootFilesystem: true
