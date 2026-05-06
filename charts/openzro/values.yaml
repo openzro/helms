@@ -1825,14 +1825,24 @@ dex:
 
     grpc:
       addr: 0.0.0.0:5557
-      # mTLS material is mounted from a Secret named `openzro-dex-grpc`
-      # by the openZro chart's templates/dex-grpc-secret.yaml. To
-      # disable mTLS for development clusters, set
-      # `dex.config.grpc.tlsCert/tlsKey/tlsClientCA: ""` in your values
-      # override AND run management with OPENZRO_DEX_GRPC_INSECURE=true.
-      tlsCert: /etc/dex/grpc-certs/server.crt
-      tlsKey: /etc/dex/grpc-certs/server.key
-      tlsClientCA: /etc/dex/grpc-certs/ca.crt
+      # Default plaintext — chart NÃO provisiona o Secret openzro-dex-grpc
+      # com material mTLS, e shipar paths apontando para arquivos
+      # inexistentes coloca o Dex pod em CrashLoop com `watch dir for
+      # TLS reloader: no such file or directory` no first install.
+      #
+      # Para ligar mTLS:
+      #   1. Provisionar o Secret openzro-dex-grpc com tls.crt/tls.key/ca.crt
+      #      (cert-manager Issuer in-cluster ou openzro-operator-config chart).
+      #   2. Setar tlsCert/tlsKey/tlsClientCA nos paths abaixo nos values overrides:
+      #        tlsCert: /etc/dex/grpc-certs/server.crt
+      #        tlsKey:  /etc/dex/grpc-certs/server.key
+      #        tlsClientCA: /etc/dex/grpc-certs/ca.crt
+      #   3. Adicionar volume + volumeMount apontando para o Secret.
+      #   4. No management, exportar OPENZRO_DEX_GRPC_CA_CERT/CLIENT_CERT/CLIENT_KEY
+      #      apontando para os paths montados (e remover OPENZRO_DEX_GRPC_INSECURE).
+      tlsCert: ""
+      tlsKey: ""
+      tlsClientCA: ""
 
     frontend:
       dir: /srv/dex/web
