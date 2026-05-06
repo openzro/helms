@@ -8,8 +8,8 @@ metadata:
 spec:
   group: openzro.io
   names:
-    kind: NBGroup
-    listKind: NBGroupList
+    kind: OZGroup
+    listKind: OZGroupList
     plural: ozgroups
     singular: ozgroup
   scope: Namespaced
@@ -17,7 +17,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NBGroup is the Schema for the ozgroups API.
+        description: OZGroup is the Schema for the ozgroups API.
         properties:
           apiVersion:
             description: |-
@@ -37,7 +37,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: NBGroupSpec defines the desired state of NBGroup.
+            description: OZGroupSpec defines the desired state of OZGroup.
             properties:
               name:
                 minLength: 1
@@ -49,11 +49,11 @@ spec:
             - name
             type: object
           status:
-            description: NBGroupStatus defines the observed state of NBGroup.
+            description: OZGroupStatus defines the observed state of OZGroup.
             properties:
               conditions:
                 items:
-                  description: NBCondition defines a condition in NBSetupKey status.
+                  description: OZCondition defines a condition in OZSetupKey status.
                   properties:
                     lastProbeTime:
                       description: Last time we probed the condition.

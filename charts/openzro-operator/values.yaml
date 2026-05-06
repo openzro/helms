@@ -1,5 +1,5 @@
 clusterSecretsPermissions:
-  # Required for NBSetupKey validation
+  # Required for OZSetupKey validation
   # Required for Ingress functionality to create and validate secrets for routing peers
   allowAllSecrets: true
 
@@ -38,10 +38,14 @@ operator:
   # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
   replicaCount: 1
 
-  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  # Container image. The openzro/openzro-operator image is published
+  # to ghcr.io by .github/workflows/release.yaml on every `v*` tag
+  # push (see operator's own release pipeline). Tag falls back to
+  # Chart.AppVersion (0.3.2-alpha.1 at the time of this commit), so
+  # `helm install` always pulls the image matching the chart's
+  # release.
   image:
-    # Set operator image registry — image is published from
-    # openzro/openzro-operator via release.yaml on every `v*` tag.
+    # Set operator image registry
     registry: ghcr.io
     # Set operator image repository (ghcr-rooted)
     repository: openzro/openzro-operator

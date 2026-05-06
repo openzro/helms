@@ -1,7 +1,7 @@
 {{- range $k, $v := $.Values.ingress.policies }}
 ---
 apiVersion: openzro.io/v1
-kind: NBPolicy
+kind: OZPolicy
 metadata:
   finalizers:
     - openzro.io/cleanup
