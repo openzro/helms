@@ -3,9 +3,14 @@ name: Release Helm Chart
 on:
   push:
     paths:
-      # update this file to trigger helm chart release
-      - 'charts/openzro-operator/Chart.yaml'
+      # Bumps em qualquer um destes Chart.yaml disparam release.
+      # `charts/openzro-operator/Chart.yaml` so passou a existir
+      # depois do flatten (antes era charts/openzro-operator/
+      # kubernetes-operator/Chart.yaml, fora do alcance do
+      # chart-releaser).
       - 'charts/openzro/Chart.yaml'
+      - 'charts/openzro-operator/Chart.yaml'
+      - 'charts/openzro-operator-config/Chart.yaml'
     branches:
       - main
   workflow_dispatch:
