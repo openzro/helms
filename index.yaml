@@ -974,6 +974,23 @@ entries:
     urls:
     - https://github.com/openzro/helms/releases/download/helm-openzro-operator-v0.3.2-alpha.1/openzro-operator-0.3.2-alpha.1.tgz
     version: 0.3.2-alpha.1
+  - apiVersion: v2
+    appVersion: 0.3.2-alpha.1
+    created: "2026-05-06T05:14:55.202784032Z"
+    description: openZro Kubernetes Operator — reconciles peers, groups, policies,
+      setup keys, and network resources from CRDs against an openZro management server.
+    digest: f14260d54eeb6b6948bb3a942dede255cd2bdbda66cb1fe084efd9e527b7de7b
+    home: https://openzro.io/
+    maintainers:
+    - email: dev@openzro.io
+      name: openZro maintainers
+    name: openzro-operator
+    sources:
+    - https://github.com/openzro/openzro-operator
+    type: application
+    urls:
+    - https://github.com/openzro/helms/releases/download/helm-openzro-operator-v0.3.2-alpha.1/openzro-operator-0.3.2-alpha.1.tgz
+    version: 0.3.2-alpha.1
   openzro-operator-config:
   - apiVersion: v2
     appVersion: 0.2.0
@@ -985,4 +1002,4 @@ entries:
     urls:
     - https://github.com/openzro/helms/releases/download/helm-openzro-operator-config-v0.1.0/openzro-operator-config-0.1.0.tgz
     version: 0.1.0
-generated: "2026-05-06T05:14:46.189033623Z"
+generated: "2026-05-06T05:14:55.202902071Z"
