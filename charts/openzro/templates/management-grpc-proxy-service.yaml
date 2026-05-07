@@ -1,0 +1,28 @@
+{{- if and .Values.management.enabled .Values.management.grpcProxy.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openzro.management.grpcProxy.fullname" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.grpcProxy.labels" . | nindent 4 }}
+  {{- with .Values.management.grpcProxy.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.management.grpcProxy.service.type }}
+  {{- if .Values.management.grpcProxy.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.management.grpcProxy.service.loadBalancerIP | quote }}
+  {{- end }}
+  {{- with .Values.management.grpcProxy.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.management.grpcProxy.service.port }}
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    {{- include "openzro.management.grpcProxy.selectorLabels" . | nindent 4 }}
+{{- end }}

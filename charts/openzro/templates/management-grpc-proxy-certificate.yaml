@@ -1,0 +1,46 @@
+{{- /*
+cert-manager Certificate for the standalone gRPC proxy. Same shape
+and conventions as relay-certificate.yaml / management-certificate.yaml:
+chart never owns the Issuer (operator-scoped), only the Certificate
++ the Secret name it materializes into.
+*/ -}}
+{{- if and .Values.management.enabled .Values.management.grpcProxy.enabled .Values.management.grpcProxy.tls.certManager.enabled -}}
+{{- $cm := .Values.management.grpcProxy.tls.certManager -}}
+{{- if not $cm.issuerRef.name -}}
+{{- fail "management.grpcProxy.tls.certManager.enabled=true requires management.grpcProxy.tls.certManager.issuerRef.name" -}}
+{{- end -}}
+{{- $dnsNames := $cm.dnsNames -}}
+{{- if and (not $dnsNames) .Values.management.grpcProxy.publicHostname -}}
+{{- $dnsNames = list .Values.management.grpcProxy.publicHostname -}}
+{{- end -}}
+{{- if not $dnsNames -}}
+{{- fail "management.grpcProxy.tls.certManager.enabled=true requires either management.grpcProxy.publicHostname or management.grpcProxy.tls.certManager.dnsNames" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "openzro.management.grpcProxy.tls.secretName" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.grpcProxy.labels" . | nindent 4 }}
+  {{- with $cm.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "openzro.management.grpcProxy.tls.secretName" . | quote }}
+  duration: {{ $cm.duration | quote }}
+  renewBefore: {{ $cm.renewBefore | quote }}
+  dnsNames:
+  {{- range $dnsNames }}
+    - {{ . | quote }}
+  {{- end }}
+  issuerRef:
+    kind: {{ $cm.issuerRef.kind | quote }}
+    name: {{ $cm.issuerRef.name | quote }}
+    group: cert-manager.io
+  {{- with $cm.privateKey }}
+  privateKey:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

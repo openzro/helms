@@ -825,9 +825,158 @@ management:
     #    hosts:
     #      - chart-example.local
 
+  ## ── gRPC Proxy (RECOMMENDED for streaming RPCs) ────────────────
+  ##
+  ## Standalone nginx (or compatible) proxy in front of the management
+  ## gRPC port, exposed via dedicated LoadBalancer with TLS termination
+  ## via cert-manager. Bypasses cluster-shared nginx-ingress entirely
+  ## for the gRPC path — the only thing this Deployment serves is
+  ## management+flow gRPC, so its config is tuned aggressively for
+  ## bidi streaming (proxy_buffering off, proxy_request_buffering off,
+  ## generous grpc_*_timeout) without affecting any other workload in
+  ## the cluster.
+  ##
+  ## Why this exists: kubernetes/ingress-nginx (community) has a
+  ## long-standing bug where bidi-streaming gRPC RPCs that don't push
+  ## a DATA frame proactively from the handler stall on the client's
+  ## stream.Header() — the nginx-ingress upstream buffer holds the
+  ## response HEADERS frame waiting for DATA. The project was
+  ## archived 2026-03 with no fix planned. Affected RPCs in this
+  ## chart: signal (already on direct LB since 2.1.0-alpha.31),
+  ## relay (always on direct LB), and management's flow.FlowService.
+  ## This proxy fixes flow without touching the rest of the cluster
+  ## ingress story.
+  ##
+  ## Architecture summary:
+  ##
+  ##   peers → mgmt-grpc.<host>:443 (LB)
+  ##        → grpcProxy nginx pod (TLS terminate, proper streaming)
+  ##        → openzro-management-grpc Service (plain HTTP/2)
+  ##        → mgmt:33073
+  ##
+  ## When to NOT enable this: you've deployed an Envoy / HAProxy /
+  ## Contour ingress controller already and routed FlowService
+  ## through it; you're fine running everything in single-pod mode
+  ## where flow events stay in-cluster (routing peers report via
+  ## Service DNS).
+  grpcProxy:
+    ## @param management.grpcProxy.enabled Enable the standalone gRPC TLS proxy in front of mgmt.
+    enabled: false
+
+    ## @param management.grpcProxy.replicas Number of nginx replicas. 2 is enough for typical HA.
+    replicas: 2
+
+    ## @param management.grpcProxy.publicHostname Public DNS name peers reach the proxy at.
+    ## Becomes the cert SAN and the auto-derived Flow.URI in management.json.
+    publicHostname: ""
+
+    image:
+      ## @param management.grpcProxy.image.repository nginx image.
+      repository: nginx
+      ## @param management.grpcProxy.image.tag nginx version. Pin in production.
+      tag: "1.27-alpine"
+      ## @param management.grpcProxy.image.pullPolicy Image pull policy.
+      pullPolicy: IfNotPresent
+
+    ## @param management.grpcProxy.imagePullSecrets Pull secrets for the nginx image (private registries).
+    imagePullSecrets: []
+
+    ## @param management.grpcProxy.podAnnotations Annotations on the proxy pods.
+    podAnnotations: {}
+
+    ## @param management.grpcProxy.podLabels Extra labels on the proxy pods.
+    podLabels: {}
+
+    ## @param management.grpcProxy.nodeSelector Node selector for the proxy.
+    nodeSelector: {}
+
+    ## @param management.grpcProxy.tolerations Tolerations for the proxy.
+    tolerations: []
+
+    ## @param management.grpcProxy.affinity Affinity rules for the proxy.
+    affinity: {}
+
+    ## @param management.grpcProxy.resources nginx resource requests / limits.
+    ## ~64Mi RAM is enough — nginx is tiny when it only proxies one location.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    service:
+      ## @param management.grpcProxy.service.type Defaults to LoadBalancer (the whole point).
+      type: LoadBalancer
+      ## @param management.grpcProxy.service.port External port. 443 to ride through corporate firewalls.
+      port: 443
+      ## @param management.grpcProxy.service.annotations Annotations on the LB Service (cloud LB tuning).
+      annotations: {}
+      ## @param management.grpcProxy.service.loadBalancerIP Pin a specific IP for the LB.
+      loadBalancerIP: ""
+      ## @param management.grpcProxy.service.externalTrafficPolicy Cluster (default) preserves balance; Local preserves source IP.
+      externalTrafficPolicy: ""
+
+    pdb:
+      ## @param management.grpcProxy.pdb.enabled PodDisruptionBudget for proxy pods.
+      enabled: true
+      ## @param management.grpcProxy.pdb.minAvailable At least one proxy must remain during disruptions.
+      minAvailable: 1
+
+    tls:
+      ## @param management.grpcProxy.tls.existingSecret Pre-existing Secret with cert/key (skip cert-manager).
+      existingSecret: ""
+
+      ## @param management.grpcProxy.tls.secretKeys.cert Key in the Secret with the cert.
+      ## @param management.grpcProxy.tls.secretKeys.key Key in the Secret with the key.
+      secretKeys:
+        cert: tls.crt
+        key: tls.key
+
+      ## @param management.grpcProxy.tls.mountPath Where the Secret is mounted in the nginx pod.
+      mountPath: /etc/nginx/tls
+
+      certManager:
+        ## @param management.grpcProxy.tls.certManager.enabled Render a cert-manager Certificate CRD.
+        enabled: false
+        issuerRef:
+          ## @param management.grpcProxy.tls.certManager.issuerRef.kind ClusterIssuer or Issuer.
+          kind: ClusterIssuer
+          ## @param management.grpcProxy.tls.certManager.issuerRef.name Existing Issuer name (operator-owned).
+          name: ""
+        ## @param management.grpcProxy.tls.certManager.duration Cert lifetime.
+        duration: 2160h
+        ## @param management.grpcProxy.tls.certManager.renewBefore Renew window.
+        renewBefore: 360h
+        ## @param management.grpcProxy.tls.certManager.dnsNames Override DNS names.
+        dnsNames: []
+        ## @param management.grpcProxy.tls.certManager.secretName Override target Secret name.
+        secretName: ""
+        ## @param management.grpcProxy.tls.certManager.privateKey privateKey block of the Certificate.
+        privateKey: {}
+        ## @param management.grpcProxy.tls.certManager.annotations Extra annotations on the Certificate CRD.
+        annotations: {}
+
+    nginx:
+      ## @param management.grpcProxy.nginx.workerProcesses nginx worker_processes.
+      workerProcesses: "auto"
+      ## @param management.grpcProxy.nginx.workerConnections nginx worker_connections.
+      workerConnections: 1024
+      ## @param management.grpcProxy.nginx.grpcReadTimeout grpc_read_timeout (long for streaming).
+      grpcReadTimeout: 3600s
+      ## @param management.grpcProxy.nginx.grpcSendTimeout grpc_send_timeout (long for streaming).
+      grpcSendTimeout: 3600s
+      ## @param management.grpcProxy.nginx.extraServerConfig Free-form nginx config inside the server { } block.
+      extraServerConfig: ""
+      ## @param management.grpcProxy.nginx.extraHttpConfig Free-form nginx config inside the http { } block.
+      extraHttpConfig: ""
+
   ingressGrpc:
     ## @param management.ingressGrpc.enabled Enable or disable GRPC ingress.
-    ##
+    ## ⚠ Has a known bidi-streaming bug with nginx-ingress community —
+    ## prefer management.grpcProxy.enabled instead. See the grpcProxy
+    ## block above for full context.
     enabled: false
 
     ## @param management.ingressGrpc.className Ingress class name for GRPC.
