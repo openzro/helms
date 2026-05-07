@@ -325,6 +325,60 @@ overrides operator's explicit value).
 {{- end -}}
 
 {{/*
+Management TLS plumbing. Mirror of relay.tls.* and signal.tls.* — same
+shape, different component. Use case: management exposed as LoadBalancer
+(serviceGrpc.type=LoadBalancer) bypassing ingress-nginx for gRPC. The
+management binary already supports TLS on its merged HTTP/gRPC port via
+HttpConfig.CertFile / HttpConfig.CertKey; this helper just wires the
+chart side (Secret mount + management.json render).
+
+The motivating bug: nginx-ingress with backend-protocol=GRPC stalls
+the response HEADERS frame on bidi-streaming RPCs that don't proactively
+send a DATA frame from the handler. flow.FlowService.Events specifically
+hit this — Sync survived because its handler pushes initial state right
+away. Confirmed in production by pointing FlowConfig.URI at the internal
+ClusterIP Service and watching events arrive end-to-end.
+*/}}
+{{- define "openzro.management.tls.secretName" -}}
+{{- $tls := .Values.management.tls -}}
+{{- if and $tls.certManager.enabled $tls.certManager.secretName -}}
+{{- $tls.certManager.secretName -}}
+{{- else if $tls.certManager.enabled -}}
+{{- printf "%s-management-tls" (include "openzro.fullname" .) -}}
+{{- else if $tls.existingSecret -}}
+{{- $tls.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+DNS names for the Certificate CRD. Falls back to [management.publicGrpcHostname]
+when management.tls.certManager.dnsNames is empty.
+*/}}
+{{- define "openzro.management.tls.dnsNames" -}}
+{{- $dn := .Values.management.tls.certManager.dnsNames -}}
+{{- if and (not $dn) .Values.management.publicGrpcHostname -}}
+{{- $dn = list .Values.management.publicGrpcHostname -}}
+{{- end -}}
+{{- toYaml $dn -}}
+{{- end -}}
+
+{{- define "openzro.management.tls.volumeMount" -}}
+{{- if .Values.management.tls.enabled }}
+- name: management-tls
+  mountPath: {{ .Values.management.tls.mountPath | quote }}
+  readOnly: true
+{{- end -}}
+{{- end -}}
+
+{{- define "openzro.management.tls.volume" -}}
+{{- if .Values.management.tls.enabled }}
+- name: management-tls
+  secret:
+    secretName: {{ include "openzro.management.tls.secretName" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 NATS connection URL for `cluster.mode=external`. Order of resolution:
   1. `cluster.external.url` — explicit operator override
   2. `nats.enabled=true` — auto-derive from the bundled subchart at

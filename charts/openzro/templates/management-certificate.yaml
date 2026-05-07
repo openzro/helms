@@ -1,0 +1,57 @@
+{{- /*
+Certificate CRD for management gRPC TLS termination at the binary, mirroring
+the relay/signal pattern (alpha.31+).
+
+Use case: management.serviceGrpc.type=LoadBalancer with peers reaching the
+gRPC port directly (bypassing nginx-ingress). The chart never creates
+Issuers — those are cluster-scoped and operator-owned. We only own the
+Certificate CRD and the Secret name it materializes into.
+
+When this template renders, the management deployment automatically mounts
+the Secret at management.tls.mountPath and the management binary picks up
+HttpConfig.CertFile / HttpConfig.CertKey from the rendered management.json.
+
+Skipped entirely when:
+  - management.tls.enabled=false
+  - management.tls.certManager.enabled=false (operator brings their own Secret)
+*/ -}}
+{{- if and .Values.management.enabled .Values.management.tls.enabled .Values.management.tls.certManager.enabled -}}
+{{- $cm := .Values.management.tls.certManager -}}
+{{- if not $cm.issuerRef.name -}}
+{{- fail "management.tls.certManager.enabled=true requires management.tls.certManager.issuerRef.name" -}}
+{{- end -}}
+{{- $dnsNames := $cm.dnsNames -}}
+{{- if and (not $dnsNames) .Values.management.publicGrpcHostname -}}
+{{- $dnsNames = list .Values.management.publicGrpcHostname -}}
+{{- end -}}
+{{- if not $dnsNames -}}
+{{- fail "management.tls.certManager.enabled=true requires either management.publicGrpcHostname or management.tls.certManager.dnsNames" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "openzro.management.tls.secretName" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+  {{- with $cm.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "openzro.management.tls.secretName" . | quote }}
+  duration: {{ $cm.duration | quote }}
+  renewBefore: {{ $cm.renewBefore | quote }}
+  dnsNames:
+  {{- range $dnsNames }}
+    - {{ . | quote }}
+  {{- end }}
+  issuerRef:
+    kind: {{ $cm.issuerRef.kind | quote }}
+    name: {{ $cm.issuerRef.name | quote }}
+    group: cert-manager.io
+  {{- with $cm.privateKey }}
+  privateKey:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
