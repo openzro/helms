@@ -1,0 +1,137 @@
+{{- /*
+Standalone nginx Deployment that fronts the management gRPC port
+with TLS termination. Sized per-replica around ~64-256 MiB; nginx
+proxying gRPC streams is essentially free CPU/memory-wise (it just
+shuffles HTTP/2 frames between the client and the upstream).
+
+The pod runs as the unprivileged `nginx` user (UID 101 on the
+official Alpine image). pid + cache temp files live under /tmp via
+emptyDir so we can keep `readOnlyRootFilesystem: true`. The TLS
+Secret is mounted read-only at .Values.management.grpcProxy.tls.mountPath
+(default /etc/nginx/tls).
+
+Triggered config reloads: when the rendered ConfigMap changes (cert
+path, timeouts, extra server config, etc.) the checksum annotation
+flips, which cycles the pods through the StatefulSet rolling update.
+The cert Secret rotation does NOT trigger a pod restart — nginx
+re-reads the cert file on the SIGHUP that cert-manager's mounted
+file refresh would trigger... actually nginx doesn't auto-reload
+on file change. cert-manager rotates the Secret content but the pod
+keeps the OLD cert until restart. To stay safe we rolled with the
+cert-manager renewBefore = 2 weeks default, so a daily rolling
+restart cron / GitOps re-apply will cycle the pods well before
+expiry. If your renew window is tighter, add a sidecar that watches
+the Secret and sends SIGHUP on change.
+*/ -}}
+{{- if and .Values.management.enabled .Values.management.grpcProxy.enabled -}}
+{{- if not .Values.management.grpcProxy.publicHostname -}}
+{{- fail "management.grpcProxy.enabled=true requires management.grpcProxy.publicHostname" -}}
+{{- end -}}
+{{- $secretName := include "openzro.management.grpcProxy.tls.secretName" . -}}
+{{- if not $secretName -}}
+{{- fail "management.grpcProxy.enabled=true requires either tls.certManager.enabled or tls.existingSecret" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openzro.management.grpcProxy.fullname" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.grpcProxy.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.management.grpcProxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "openzro.management.grpcProxy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openzro.management.grpcProxy.selectorLabels" . | nindent 8 }}
+        {{- with .Values.management.grpcProxy.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/management-grpc-proxy-configmap.yaml") . | sha256sum }}
+        {{- with .Values.management.grpcProxy.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.management.grpcProxy.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: "{{ .Values.management.grpcProxy.image.repository }}:{{ .Values.management.grpcProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.management.grpcProxy.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 101
+            runAsGroup: 101
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.management.grpcProxy.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: https
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: https
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tls
+              mountPath: {{ .Values.management.grpcProxy.tls.mountPath | quote }}
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /run
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: {{ include "openzro.management.grpcProxy.fullname" . }}
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        - name: tls
+          secret:
+            secretName: {{ $secretName | quote }}
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+      {{- with .Values.management.grpcProxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.management.grpcProxy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.management.grpcProxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

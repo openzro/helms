@@ -1,0 +1,117 @@
+{{- /*
+nginx config for the standalone gRPC proxy. Tuned aggressively for
+bidi-streaming gRPC — the cluster ingress-nginx can't safely turn
+proxy_buffering off globally because it serves many other workloads
+that benefit from buffering, but THIS nginx only ever serves one
+location, so we can.
+
+Key directives (inline-commented inside the rendered config so an
+operator running `kubectl exec` can read them):
+
+  proxy_buffering off
+  proxy_request_buffering off
+       Force every HEADERS / DATA / WINDOW_UPDATE / PING frame to
+       go on the wire immediately. Without this, the response
+       HEADERS frame from the management gRPC server (which holds
+       the gRPC initial metadata) sits in nginx's upstream buffer
+       waiting for the first DATA frame to come along — and a
+       streaming RPC whose handler blocks on Recv() never produces
+       that first DATA frame. The client's stream.Header() blocks
+       indefinitely → application logic deadlocks. This was the
+       silent-failure mode that bit FlowService.Events in the
+       2.1.0-alpha.x line.
+
+  grpc_read_timeout / grpc_send_timeout
+       Long for streaming. The default 60s causes mid-stream
+       disconnects every minute on idle bidi RPCs.
+
+  http2_max_concurrent_streams 128
+       gRPC client multiplexes per-RPC streams over one HTTP/2
+       connection. 128 is generous for the openzro use case
+       (one Sync stream + one Flow stream per peer, so ~64 peers
+       per upstream connection). Bump if you have more peers per
+       upstream than that.
+*/ -}}
+{{- if and .Values.management.enabled .Values.management.grpcProxy.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openzro.management.grpcProxy.fullname" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.grpcProxy.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes {{ .Values.management.grpcProxy.nginx.workerProcesses }};
+    error_log /dev/stderr info;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections {{ .Values.management.grpcProxy.nginx.workerConnections }};
+    }
+
+    http {
+        access_log /dev/stdout;
+
+        # Tunings the cluster ingress-nginx can't safely set globally —
+        # required for gRPC bidi-streaming to flush response HEADERS
+        # without a leading DATA frame. See the values.yaml grpcProxy
+        # block for the full backstory.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_http_version 1.1;
+
+        # Use Kubernetes' DNS so the upstream Service name resolves
+        # to ClusterIPs at request time. Setting `valid=` short keeps
+        # the proxy in step with rolling restarts of the management
+        # StatefulSet (each restart spins up a new pod IP).
+        resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
+
+        upstream openzro_management_grpc {
+            zone openzro_management_grpc 64k;
+            server {{ printf "%s-management-grpc.%s.svc.cluster.local:%d"
+                        (include "openzro.fullname" .)
+                        (include "openzro.namespace" .)
+                        (.Values.management.serviceGrpc.port | int) }} resolve;
+            keepalive 32;
+        }
+
+        client_max_body_size 0;
+
+        {{- with .Values.management.grpcProxy.nginx.extraHttpConfig }}
+        {{- nindent 8 . }}
+        {{- end }}
+
+        server {
+            listen 443 ssl;
+            http2 on;
+            server_name {{ .Values.management.grpcProxy.publicHostname | quote }};
+
+            ssl_certificate     {{ printf "%s/%s"
+                                    .Values.management.grpcProxy.tls.mountPath
+                                    .Values.management.grpcProxy.tls.secretKeys.cert }};
+            ssl_certificate_key {{ printf "%s/%s"
+                                    .Values.management.grpcProxy.tls.mountPath
+                                    .Values.management.grpcProxy.tls.secretKeys.key }};
+
+            ssl_protocols TLSv1.2 TLSv1.3;
+            ssl_ciphers HIGH:!aNULL:!MD5;
+            http2_max_concurrent_streams 128;
+
+            grpc_read_timeout {{ .Values.management.grpcProxy.nginx.grpcReadTimeout }};
+            grpc_send_timeout {{ .Values.management.grpcProxy.nginx.grpcSendTimeout }};
+
+            {{- with .Values.management.grpcProxy.nginx.extraServerConfig }}
+            {{- nindent 12 . }}
+            {{- end }}
+
+            # Single catch-all location that proxies every gRPC method
+            # to the management upstream. Both /management.* and /flow.*
+            # land here. We don't split per-service because the
+            # management binary serves both on the same gRPC port.
+            location / {
+                grpc_pass grpc://openzro_management_grpc;
+            }
+        }
+    }
+{{- end }}

@@ -379,6 +379,40 @@ when management.tls.certManager.dnsNames is empty.
 {{- end -}}
 
 {{/*
+gRPC Proxy plumbing — standalone nginx in front of mgmt:33073.
+The proxy terminates TLS at the nginx pod itself (cert-manager Secret
+mounted at .Values.management.grpcProxy.tls.mountPath) so peers reach
+it via a dedicated public hostname over HTTPS, bypassing the cluster
+nginx-ingress entirely. See the grpcProxy block in values.yaml for
+why this exists (kubernetes/ingress-nginx bidi-stream HEADERS bug).
+*/}}
+{{- define "openzro.management.grpcProxy.fullname" -}}
+{{- printf "%s-management-grpc-proxy" (include "openzro.fullname" .) -}}
+{{- end -}}
+
+{{- define "openzro.management.grpcProxy.labels" -}}
+{{ include "openzro.common.labels" . }}
+app.kubernetes.io/component: management-grpc-proxy
+{{- end -}}
+
+{{- define "openzro.management.grpcProxy.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "openzro.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: management-grpc-proxy
+{{- end -}}
+
+{{- define "openzro.management.grpcProxy.tls.secretName" -}}
+{{- $tls := .Values.management.grpcProxy.tls -}}
+{{- if and $tls.certManager.enabled $tls.certManager.secretName -}}
+{{- $tls.certManager.secretName -}}
+{{- else if $tls.certManager.enabled -}}
+{{- printf "%s-tls" (include "openzro.management.grpcProxy.fullname" .) -}}
+{{- else if $tls.existingSecret -}}
+{{- $tls.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 NATS connection URL for `cluster.mode=external`. Order of resolution:
   1. `cluster.external.url` — explicit operator override
   2. `nats.enabled=true` — auto-derive from the bundled subchart at

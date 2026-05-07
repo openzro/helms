@@ -1,0 +1,14 @@
+{{- if and .Values.management.enabled .Values.management.grpcProxy.enabled .Values.management.grpcProxy.pdb.enabled (gt (.Values.management.grpcProxy.replicas | int) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "openzro.management.grpcProxy.fullname" . }}
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.grpcProxy.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.management.grpcProxy.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "openzro.management.grpcProxy.selectorLabels" . | nindent 6 }}
+{{- end }}
