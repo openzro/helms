@@ -712,8 +712,68 @@ management:
   ##
   grpcContainerPort: 33073
 
+  ## Public hostname the gRPC port is reachable at when serviceGrpc.type is
+  ## LoadBalancer. Used as the cert-manager Certificate SAN, as the
+  ## auto-derived Flow.URI in management.json, and for Service annotations
+  ## that pin a static external IP. Leave empty when running gRPC behind
+  ## an Ingress (the default ClusterIP path).
+  ## @param management.publicGrpcHostname Public DNS name for the gRPC LoadBalancer.
+  publicGrpcHostname: ""
+
+  ## TLS termination at the management binary itself, mirroring the
+  ## relay/signal LB pattern (alpha.31+). Required when serviceGrpc.type is
+  ## LoadBalancer because there's no ingress in the path to terminate.
+  ## When enabled, the management pod mounts a TLS Secret and the
+  ## generated management.json points HttpConfig.CertFile / CertKey at
+  ## the mounted paths.
+  tls:
+    ## @param management.tls.enabled Terminate TLS at the management binary.
+    enabled: false
+
+    ## @param management.tls.existingSecret Pre-existing Secret holding cert/key (skip cert-manager).
+    existingSecret: ""
+
+    ## @param management.tls.secretKeys.cert Key in the Secret holding the certificate.
+    ## @param management.tls.secretKeys.key Key in the Secret holding the private key.
+    secretKeys:
+      cert: tls.crt
+      key: tls.key
+
+    ## @param management.tls.mountPath Path inside the management pod where the cert is mounted.
+    mountPath: /etc/openzro/tls
+
+    certManager:
+      ## @param management.tls.certManager.enabled Render a cert-manager Certificate CRD.
+      enabled: false
+
+      ## @param management.tls.certManager.issuerRef.kind ClusterIssuer or Issuer.
+      ## @param management.tls.certManager.issuerRef.name Existing Issuer name (operator-owned).
+      issuerRef:
+        kind: ClusterIssuer
+        name: ""
+
+      ## @param management.tls.certManager.duration Certificate lifetime.
+      ## @param management.tls.certManager.renewBefore Renew window.
+      duration: 2160h
+      renewBefore: 360h
+
+      ## @param management.tls.certManager.dnsNames Override DNS names (defaults to publicGrpcHostname).
+      dnsNames: []
+
+      ## @param management.tls.certManager.secretName Override target Secret name.
+      secretName: ""
+
+      ## @param management.tls.certManager.privateKey privateKey block of the Certificate.
+      privateKey: {}
+
+      ## @param management.tls.certManager.annotations Extra annotations on the Certificate CRD.
+      annotations: {}
+
   serviceGrpc:
     ## @param management.serviceGrpc.type Service type for the management GRPC component.
+    ## ClusterIP for ingress-mode (gRPC terminated at nginx-ingress), LoadBalancer
+    ## when management.tls.enabled=true and you want a public direct-to-pod gRPC
+    ## endpoint (mirrors the relay/signal pattern).
     ##
     type: ClusterIP
 

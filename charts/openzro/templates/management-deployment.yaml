@@ -188,6 +188,7 @@ spec:
               name: config
             - mountPath: /var/lib/openzro
               name: management
+          {{- include "openzro.management.tls.volumeMount" . | nindent 12 }}
           {{- if .Values.management.volumeMounts }}
           {{- .Values.management.volumeMounts | toYaml | nindent 12 }}
           {{- end }}
@@ -218,6 +219,7 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+          {{- include "openzro.management.tls.volume" . | nindent 8 }}
           {{- if  .Values.management.volumes }}
           {{- .Values.management.volumes | toYaml | nindent 8 }}
           {{- end }}
