@@ -460,6 +460,25 @@ management:
       ## Auto-derived from management.ingress.hosts[0].host when empty.
       uri: ""
 
+    ## Flow event ingestion endpoint that peers connect to when
+    ## traffic logging is enabled (Settings → Network Traffic Logs in
+    ## the dashboard). The management's `flow.FlowService` gRPC
+    ## handler is registered on the same port as the ManagementService,
+    ## so for typical self-hosted deployments this is the same host
+    ## as the gRPC ingress (i.e. `management.ingressGrpc.hosts[0].host`).
+    ##
+    ## When uri is empty, the management binary falls back to
+    ## Signal.URI to populate the per-peer FlowConfig — but Signal is
+    ## a different gRPC server (signal.proto, not flow.proto), so
+    ## peers silently fail to stream events until Flow is configured
+    ## explicitly.
+    flow:
+      ## @param management.config.flow.proto Flow server protocol.
+      proto: https
+      ## @param management.config.flow.uri Flow ingestion URI (host:port).
+      ## Auto-derived from management.ingressGrpc.hosts[0].host + ":443" when empty.
+      uri: ""
+
     reverseProxy:
       ## @param management.config.reverseProxy.trustedHTTPProxies List of trusted HTTP proxy IPs.
       trustedHTTPProxies: []
