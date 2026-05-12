@@ -318,6 +318,8 @@ entry with a given name wins, so envRaw is always authoritative.
   value: postgres
 - name: OPENZRO_FLOW_STORE_DSN
   value: {{ include "openzro.postgres.flowDSN" . | quote }}
+- name: OPENZRO_FLOW_RETENTION
+  value: {{ .Values.management.flowRetention | default "720h" | quote }}
 - name: OZ_ACTIVITY_EVENT_STORE_ENGINE
   value: postgres
 - name: OZ_ACTIVITY_EVENT_POSTGRES_DSN
@@ -336,6 +338,8 @@ entry with a given name wins, so envRaw is always authoritative.
   value: mysql
 - name: OPENZRO_FLOW_STORE_DSN
   value: {{ include "openzro.mysql.flowDSN" . | quote }}
+- name: OPENZRO_FLOW_RETENTION
+  value: {{ .Values.management.flowRetention | default "720h" | quote }}
 - name: OZ_ACTIVITY_EVENT_STORE_ENGINE
   value: mysql
 - name: OZ_ACTIVITY_EVENT_MYSQL_DSN
