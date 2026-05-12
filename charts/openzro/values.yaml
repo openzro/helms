@@ -602,6 +602,35 @@ management:
   ##
   flowRetention: 720h
 
+  ## @param management.flowArchiveFormat File format for the cold
+  ## archive sink (OPENZRO_FLOW_ARCHIVE_S3_BUCKET / GCS_BUCKET). Two
+  ## values are supported:
+  ##
+  ##   - "parquet" (default): compressed columnar files, queryable by
+  ##     the dashboard's federated read path (ADR-0012). Pairs with
+  ##     the archive_duckdb build tag in the management binary (on
+  ##     since alpha.52) — events older than flowRetention show up
+  ##     in the dashboard transparently.
+  ##
+  ##   - "ndjson": legacy line-delimited JSON, *.ndjson.gz files. The
+  ##     federated read path does NOT consume this format — events
+  ##     older than flowRetention disappear from the dashboard but
+  ##     remain queryable via BigQuery / Athena / DuckDB CLI against
+  ##     the bucket directly. Pre-alpha.52 installs default to this
+  ##     for back-compat; new installs and any operator wanting the
+  ##     dashboard to reach historical data should leave this on
+  ##     "parquet".
+  ##
+  ## Existing operators with NDJSON files in their bucket: flipping
+  ## to "parquet" produces Parquet files for events from the flip
+  ## onward, alongside the existing NDJSON. The dashboard's archive
+  ## read picks up the Parquet half; old NDJSON stays accessible via
+  ## external tools. A one-shot NDJSON→Parquet re-emit tool is on
+  ## the roadmap (ADR-0019) for operators who want contiguous
+  ## dashboard history.
+  ##
+  flowArchiveFormat: parquet
+
   ## @param management.env Environment variables for the management pod.
   ##
   env: {}
