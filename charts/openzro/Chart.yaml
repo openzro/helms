@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.43
+version: 2.1.0-alpha.44
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -20,7 +20,7 @@ version: 2.1.0-alpha.43
 # icons; alpha.21 hotfixes a User.Copy regression; alpha.22 pins
 # the cluster locks bucket to MemoryStorage (lab-caught issue with
 # memory-only NATS).
-appVersion: "0.53.1-alpha.52"
+appVersion: "0.53.1-alpha.53"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
