@@ -593,6 +593,15 @@ management:
   strategy:
     type: Recreate
 
+  ## @param management.flowRetention Hot-tier retention window for the
+  ## per-flow events table. Older partitions are dropped daily by the
+  ## management's purge loop (Postgres) or row-level DELETE (MySQL).
+  ## Default 720h = 30 days. Reduce on small disks; raise when an
+  ## archive bucket is not yet configured and operators need longer
+  ## history in the dashboard. Accepts any Go duration string.
+  ##
+  flowRetention: 720h
+
   ## @param management.env Environment variables for the management pod.
   ##
   env: {}
