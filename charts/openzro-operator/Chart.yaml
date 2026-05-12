@@ -6,8 +6,8 @@ type: application
 # the first openZro-fork release on top of upstream's BSD-3 v0.3.1
 # (NB* → OZ* rename + import-path realignment + API surface
 # backports against openzro/openzro v0.53.1-alpha.1).
-version: "0.3.2-alpha.1"
-appVersion: "0.3.2-alpha.1"
+version: "0.3.2-alpha.2"
+appVersion: "0.3.2-alpha.2"
 home: https://openzro.io/
 sources:
   - https://github.com/openzro/openzro-operator
