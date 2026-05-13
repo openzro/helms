@@ -192,7 +192,11 @@ spec:
   parentRefs:
     {{- toYaml $parents | nindent 4 }}
   hostnames:
-    - {{ $gw.gateway.hostname | quote }}
+    # Per-route hostname override — signal commonly runs on a separate
+    # subdomain from dashboard/management so peers can connect even when
+    # the dashboard host is gated by auth/WAF. Falls back to the shared
+    # gateway hostname when unset.
+    - {{ default $gw.gateway.hostname $gw.routes.signal.hostname | quote }}
   rules:
     - {{- if or $gw.routes.signal.method $gw.routes.signal.service }}
       matches:

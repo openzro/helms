@@ -17,6 +17,13 @@ spec:
       targetPort: {{ .Values.signal.service.name }}
       protocol: TCP
       name: {{ .Values.signal.service.name }}
+      # When signal.tls.enabled=false the binary serves gRPC over
+      # HTTP/2 cleartext. Gateway API / Envoy-based controllers read
+      # appProtocol to decide upstream framing — h2c forces HTTP/2
+      # cleartext, required for gRPC streaming bidi to survive end-to-end.
+      {{- if not .Values.signal.tls.enabled }}
+      appProtocol: kubernetes.io/h2c
+      {{- end }}
     {{- if .Values.signal.metrics.enabled }}
     - port: {{ .Values.signal.metrics.port }}
       targetPort: metrics

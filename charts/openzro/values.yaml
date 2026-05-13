@@ -2450,6 +2450,11 @@ gatewayApi:
       enabled: true
       method: ""
       service: ""
+      # Optional per-route hostname override. Useful when signal lives on
+      # a different subdomain from dashboard/management (e.g. signal hosted
+      # on a separate listener with passthrough TLS, or on a public host
+      # that bypasses dashboard auth). Empty falls back to gateway.hostname.
+      hostname: ""
     relay:
       enabled: true
       path: /
