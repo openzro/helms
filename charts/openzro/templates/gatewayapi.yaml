@@ -164,8 +164,17 @@ spec:
   hostnames:
     - {{ $gw.gateway.hostname | quote }}
   rules:
-    - {{- if or $gw.routes.managementGrpc.method $gw.routes.managementGrpc.service }}
-      matches:
+    # When a sibling HTTPRoute on the same host catches "/" (e.g. the
+    # dashboard SPA), Envoy evaluates routes in declaration order and
+    # the SPA prefix can win for /management.ManagementService/* gRPC
+    # requests — peers then receive HTML 404 with content-type text/html
+    # which the gRPC client reports as code=Unimplemented. Explicit
+    # service matches translate to longest-prefix routes
+    # (/management.ManagementService/, /flow.FlowService/) that beat the
+    # bare "/" SPA route deterministically. Operators can still override
+    # via routes.managementGrpc.method/service for narrower matching.
+    {{- if or $gw.routes.managementGrpc.method $gw.routes.managementGrpc.service }}
+    - matches:
         - method:
             {{- with $gw.routes.managementGrpc.service }}
             service: {{ . | quote }}
@@ -173,10 +182,19 @@ spec:
             {{- with $gw.routes.managementGrpc.method }}
             method: {{ . | quote }}
             {{- end }}
-      {{- end }}
       backendRefs:
         - name: {{ $fullName }}-management-grpc
           port: {{ .Values.management.serviceGrpc.port | default .Values.management.service.port }}
+    {{- else }}
+    - matches:
+        - method:
+            service: management.ManagementService
+        - method:
+            service: flow.FlowService
+      backendRefs:
+        - name: {{ $fullName }}-management-grpc
+          port: {{ .Values.management.serviceGrpc.port | default .Values.management.service.port }}
+    {{- end }}
 {{- end }}
 
 {{- if and .Values.signal.enabled $gw.routes.signal.enabled }}
