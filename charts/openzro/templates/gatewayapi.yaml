@@ -124,7 +124,7 @@ spec:
    other openzro components. Port comes from dex.service.ports.http.
 */ -}}
 {{- $dexSvcName := printf "%s-dex" .Release.Name -}}
-{{- $dexSvcPort := (((.Values.dex).service).ports).http.port | default 5556 -}}
+{{- $dexSvcPort := (((.Values.dex).service).ports).http.port | default 5556 }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
