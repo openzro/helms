@@ -1,0 +1,34 @@
+{{- /*
+Grafana dashboards bundle — emitted as a single ConfigMap carrying the
+`grafana_dashboard=1` label, which the Grafana sidecar (kiwigrid/k8s-sidecar
+or Grafana Operator) auto-discovers and imports into Grafana.
+
+Decoupled from `metrics.serviceMonitor` because dashboards are useful as
+long as something somewhere scrapes openZro — the ConfigMap doesn't care
+how that scraping happens.
+*/ -}}
+{{- if .Values.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openzro.fullname" . }}-grafana-dashboards
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboards
+    {{- /* Sidecar pickup label — key/value configurable, default matches the
+           Grafana Helm chart's out-of-the-box sidecar settings. */}}
+    {{ .Values.dashboards.label | default "grafana_dashboard" }}: {{ .Values.dashboards.labelValue | default "1" | quote }}
+    {{- with .Values.dashboards.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- /* Folder hint honoured by the Grafana sidecar (FOLDER_ANNOTATION). */}}
+    {{ .Values.dashboards.folderAnnotation | default "grafana_folder" }}: {{ .Values.dashboards.folder | default "openZro" | quote }}
+    {{- with .Values.dashboards.extraAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  openzro-overview.json: |-
+    {{- .Files.Get "dashboards/openzro-overview.json" | nindent 4 }}
+{{- end }}

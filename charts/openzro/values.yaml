@@ -2041,6 +2041,45 @@ metrics:
     ##
     selector: {}
 
+## @section Grafana dashboards
+##
+## Emitted as a ConfigMap carrying the `grafana_dashboard=1` label, which
+## the Grafana sidecar (kiwigrid/k8s-sidecar or Grafana Operator) auto-
+## discovers and imports into Grafana. Independent of Prometheus scrape
+## config — assumes metrics are already collected somewhere.
+##
+## The bundled `openzro-overview.json` covers the management gRPC plane,
+## signal exchange, relay fabric, IdP traffic, and per-component resource
+## usage. Uses templated `$datasource`, `$namespace`, and `$pod` variables.
+##
+dashboards:
+  ## @param dashboards.enabled Render the Grafana dashboards ConfigMap.
+  ##
+  enabled: false
+  ## @param dashboards.folder Grafana folder shown in the UI. Multiple
+  ## openZro-related charts can target the same folder.
+  ##
+  folder: openZro
+  ## @param dashboards.label Sidecar discovery label key. Override only
+  ## if the Grafana sidecar is configured with a non-default LABEL.
+  ##
+  label: grafana_dashboard
+  ## @param dashboards.labelValue Sidecar discovery label value.
+  ##
+  labelValue: "1"
+  ## @param dashboards.folderAnnotation Annotation key used by the
+  ## sidecar to route the dashboard into a Grafana folder.
+  ##
+  folderAnnotation: grafana_folder
+  ## @param dashboards.extraLabels Additional labels merged onto the
+  ## dashboards ConfigMap.
+  ##
+  extraLabels: {}
+  ## @param dashboards.extraAnnotations Additional annotations merged
+  ## onto the dashboards ConfigMap.
+  ##
+  extraAnnotations: {}
+
 ## @section openZro Federated IdP (Dex)
 ##
 ## openZro embeds Dex as its OIDC issuer (per ADR-0006 in the
