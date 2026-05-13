@@ -2056,6 +2056,15 @@ dashboards:
   ## @param dashboards.enabled Render the Grafana dashboards ConfigMap.
   ##
   enabled: false
+  ## @param dashboards.cluster Cluster identifier baked into the dashboard
+  ## title and `cluster` template variable. Use a short, human-readable
+  ## name (e.g. "admin-us-central1", "stage", "production-br"). Substituted
+  ## into the dashboard JSON via Helm `replace` at render time — Grafana
+  ## ${var} expressions in the JSON are preserved verbatim.
+  ## Empty value renders the dashboard without a cluster suffix, which is
+  ## fine for single-cluster deployments.
+  ##
+  cluster: ""
   ## @param dashboards.folder Grafana folder shown in the UI. Multiple
   ## openZro-related charts can target the same folder.
   ##

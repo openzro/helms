@@ -30,5 +30,11 @@ metadata:
     {{- end }}
 data:
   openzro-overview.json: |-
-    {{- .Files.Get "dashboards/openzro-overview.json" | nindent 4 }}
+    {{- /* Replace the __CLUSTER__ placeholder in the dashboard JSON with the
+           operator-supplied cluster identifier (dashboards.cluster). Empty
+           string is safe — the dashboard panels degrade to a generic title
+           when no value is provided. Plain Sprig `replace` is used instead
+           of `tpl` so that Grafana's ${var} syntax inside the JSON is
+           preserved verbatim (tpl would try to expand them as Helm refs). */}}
+    {{- .Files.Get "dashboards/openzro-overview.json" | replace "__CLUSTER__" (.Values.dashboards.cluster | default "") | nindent 4 }}
 {{- end }}
