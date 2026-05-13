@@ -110,6 +110,45 @@ spec:
           port: {{ .Values.management.service.port }}
 {{- end }}
 
+{{- if and .Values.dex.enabled $gw.routes.dex.enabled }}
+{{- /*
+   Dex HTTPRoute. The path prefix MUST match the path component of
+   `dex.config.issuer` exactly — Dex's template engine derives asset
+   URL prefix from issuerURL.Path. Do NOT add filters that strip the
+   prefix (e.g. URLRewrite); doing so breaks /theme/styles.css and
+   other static asset resolution. Same pitfall the legacy
+   dex-ingress.yaml warns about.
+
+   Service name follows the upstream dex sub-chart convention
+   (<release>-dex), not the openzro.fullname helper used by the
+   other openzro components. Port comes from dex.service.ports.http.
+*/ -}}
+{{- $dexSvcName := printf "%s-dex" .Release.Name -}}
+{{- $dexSvcPort := (((.Values.dex).service).ports).http.port | default 5556 -}}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}-dex
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "openzro.common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dex
+spec:
+  parentRefs:
+    {{- toYaml $parents | nindent 4 }}
+  hostnames:
+    - {{ $gw.gateway.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $gw.routes.dex.pathType | default "PathPrefix" }}
+            value: {{ $gw.routes.dex.path | default "/dex" | quote }}
+      backendRefs:
+        - name: {{ $dexSvcName }}
+          port: {{ $dexSvcPort }}
+{{- end }}
+
 {{- if and .Values.management.enabled $gw.routes.managementGrpc.enabled }}
 ---
 apiVersion: gateway.networking.k8s.io/v1

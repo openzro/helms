@@ -26,6 +26,12 @@ spec:
       targetPort: {{ .Values.management.serviceGrpc.name }}
       protocol: TCP
       name: {{ .Values.management.serviceGrpc.name }}
+      # Gateway API / Envoy-based controllers (kgateway, Envoy Gateway,
+      # GKE Gateway) read appProtocol to decide upstream framing. With
+      # kubernetes.io/h2c the proxy speaks HTTP/2 cleartext to the pod —
+      # required for gRPC streaming to work end-to-end. Without this,
+      # some controllers default to HTTP/1.1 and break bidi RPCs.
+      appProtocol: kubernetes.io/h2c
   selector:
     {{- include "openzro.management.selectorLabels" . | nindent 4 }}
   {{- with .Values.management.serviceGrpc.externalIPs }}

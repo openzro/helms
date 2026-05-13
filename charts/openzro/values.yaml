@@ -2429,15 +2429,23 @@ gatewayApi:
       enabled: true
       path: /api
       pathType: PathPrefix
-      # The well-known OIDC discovery endpoints + Dex /auth landing
-      # are also fronted by the management/dashboard host. The chart
-      # adds them as additional matches when dex.enabled is true.
     managementGrpc:
       enabled: true
       # gRPC routes match by Service+Method or Service prefix.
       # Empty matches → match-all gRPC traffic to the host.
+      # Catches both /management.ManagementService/* and /flow.FlowService/*
+      # since both live on the same management-grpc backend.
       method: ""
       service: ""
+    dex:
+      enabled: true
+      path: /dex
+      pathType: PathPrefix
+      # Path prefix MUST match the path component of dex.config.issuer
+      # exactly — Dex's relativeURL() derives asset URL prefix from it.
+      # Stripping the prefix (e.g. via filters) breaks /theme/styles.css
+      # resolution on the login page. Same pitfall documented on the
+      # legacy dex-ingress template.
     signal:
       enabled: true
       method: ""
