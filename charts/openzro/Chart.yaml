@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.58
+version: 2.1.0-alpha.59
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -21,8 +21,12 @@ version: 2.1.0-alpha.58
 # the cluster locks bucket to MemoryStorage (lab-caught issue with
 # memory-only NATS); alpha.69 ships #38 — persistent per-peer posture
 # evaluation timeline (backend table + retention worker + dashboard
-# Posture tab) plus the MDM/Intune posture-check fixes from alpha.67.
-appVersion: "0.53.1-alpha.69"
+# Posture tab) plus the MDM/Intune posture-check fixes from alpha.67;
+# alpha.70 ships Bug 6 (per-provider refresh interval, operator-set
+# from the dashboard, 1-60min) + Bug 3 (cross-replica MDM cache
+# fan-out via cluster pub/sub — N-replica clusters now pay ~1/N as
+# many vendor API calls).
+appVersion: "0.53.1-alpha.70"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
