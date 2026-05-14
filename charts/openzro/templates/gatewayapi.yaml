@@ -208,8 +208,15 @@ spec:
 
 {{- if and .Values.signal.enabled $gw.routes.signal.enabled }}
 ---
+# HTTPRoute (not GRPCRoute) — same reasoning as the management-grpc
+# Route above. Signal's ConnectStream is a long-lived server-streaming
+# RPC for ICE / NAT-traversal coordination; Envoy's default 15s
+# per-route request timeout would kill it on the same cycle that
+# bit the management Sync stream. Standard HTTPRoute `timeouts.request:
+# 0s` disables the timeout. Path-prefix matches on the proto service
+# name are equivalent to the GRPCRoute method.service filter.
 apiVersion: gateway.networking.k8s.io/v1
-kind: GRPCRoute
+kind: HTTPRoute
 metadata:
   name: {{ $fullName }}-signal
   namespace: {{ $namespace }}
@@ -225,16 +232,19 @@ spec:
     # gateway hostname when unset.
     - {{ default $gw.gateway.hostname $gw.routes.signal.hostname | quote }}
   rules:
-    - {{- if or $gw.routes.signal.method $gw.routes.signal.service }}
-      matches:
-        - method:
-            {{- with $gw.routes.signal.service }}
-            service: {{ . | quote }}
-            {{- end }}
-            {{- with $gw.routes.signal.method }}
-            method: {{ . | quote }}
-            {{- end }}
-      {{- end }}
+    - matches:
+        {{- if or $gw.routes.signal.method $gw.routes.signal.service }}
+        - path:
+            type: PathPrefix
+            value: {{ printf "/%s/%s" (default "" $gw.routes.signal.service) (default "" $gw.routes.signal.method) | quote }}
+        {{- else }}
+        - path:
+            type: PathPrefix
+            value: "/signalexchange.SignalExchange/"
+        {{- end }}
+      timeouts:
+        request: 0s
+        backendRequest: 0s
       backendRefs:
         - name: {{ $fullName }}-signal
           port: {{ .Values.signal.service.port }}
