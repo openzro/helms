@@ -151,8 +151,23 @@ spec:
 
 {{- if and .Values.management.enabled $gw.routes.managementGrpc.enabled }}
 ---
+# HTTPRoute (not GRPCRoute) so we can pin `timeouts.request: 0s` on the
+# rule. gRPC is HTTP/2 underneath; path-prefix matches on the proto
+# service name (/management.ManagementService/, /flow.FlowService/)
+# are equivalent to the GRPCRoute `method.service` field and still beat
+# any sibling SPA route at "/" deterministically.
+#
+# The reason for the switch: Envoy's per-route request timeout defaults
+# to 15s. For a Sync stream that stays open for hours, the timer fires
+# every 15s with response_flags=UT, RST_STREAM NO_ERROR on the wire,
+# and the peer reconnects — visible on the dashboard's Peers page as
+# the online↔offline flicker. kgateway's TrafficPolicy.timeouts only
+# supports HTTPRoutes (rejects GRPCRoute targetRefs at admission), so
+# HTTPRoute is the only path to disable the timeout for long-lived
+# bidi gRPC. Standard `rules[].timeouts.request: 0s` of Gateway API
+# v1 HTTPRoute does the job.
 apiVersion: gateway.networking.k8s.io/v1
-kind: GRPCRoute
+kind: HTTPRoute
 metadata:
   name: {{ $fullName }}-management-grpc
   namespace: {{ $namespace }}
@@ -164,37 +179,31 @@ spec:
   hostnames:
     - {{ $gw.gateway.hostname | quote }}
   rules:
-    # When a sibling HTTPRoute on the same host catches "/" (e.g. the
-    # dashboard SPA), Envoy evaluates routes in declaration order and
-    # the SPA prefix can win for /management.ManagementService/* gRPC
-    # requests — peers then receive HTML 404 with content-type text/html
-    # which the gRPC client reports as code=Unimplemented. Explicit
-    # service matches translate to longest-prefix routes
-    # (/management.ManagementService/, /flow.FlowService/) that beat the
-    # bare "/" SPA route deterministically. Operators can still override
-    # via routes.managementGrpc.method/service for narrower matching.
-    {{- if or $gw.routes.managementGrpc.method $gw.routes.managementGrpc.service }}
     - matches:
-        - method:
-            {{- with $gw.routes.managementGrpc.service }}
-            service: {{ . | quote }}
-            {{- end }}
-            {{- with $gw.routes.managementGrpc.method }}
-            method: {{ . | quote }}
-            {{- end }}
+        {{- if or $gw.routes.managementGrpc.method $gw.routes.managementGrpc.service }}
+        - path:
+            type: PathPrefix
+            value: {{ printf "/%s/%s" (default "" $gw.routes.managementGrpc.service) (default "" $gw.routes.managementGrpc.method) | quote }}
+        {{- else }}
+        - path:
+            type: PathPrefix
+            value: "/management.ManagementService/"
+        - path:
+            type: PathPrefix
+            value: "/flow.FlowService/"
+        {{- end }}
+      timeouts:
+        # 0s disables the per-route request timeout — required for the
+        # long-lived bidi Sync stream. The backendRequest timeout
+        # follows suit: each upstream request inside the stream is
+        # also unbounded (the gRPC keepalive on the management server
+        # is what catches truly dead connections; see kasp in
+        # cmd/management.go).
+        request: 0s
+        backendRequest: 0s
       backendRefs:
         - name: {{ $fullName }}-management-grpc
           port: {{ .Values.management.serviceGrpc.port | default .Values.management.service.port }}
-    {{- else }}
-    - matches:
-        - method:
-            service: management.ManagementService
-        - method:
-            service: flow.FlowService
-      backendRefs:
-        - name: {{ $fullName }}-management-grpc
-          port: {{ .Values.management.serviceGrpc.port | default .Values.management.service.port }}
-    {{- end }}
 {{- end }}
 
 {{- if and .Values.signal.enabled $gw.routes.signal.enabled }}
