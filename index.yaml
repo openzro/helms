@@ -3,6 +3,41 @@ entries:
   openzro:
   - apiVersion: v2
     appVersion: 0.53.1-alpha.63
+    created: "2026-05-14T02:31:41.918713083Z"
+    dependencies:
+    - condition: dex.enabled
+      name: dex
+      repository: https://charts.dexidp.io
+      version: 0.23.0
+    - condition: nats.enabled
+      name: nats
+      repository: https://nats-io.github.io/k8s/helm/charts/
+      version: 1.3.13
+    description: openZro — open-source mesh networking with WireGuard. Self-hosted
+      control plane (management, signal, relay, dashboard) plus a Dex-based federated
+      IdP (per ADR-0006).
+    digest: 2b5bb5f6d695c73f64590e9bb32c3a3a1cc7b63a3032dddac31400cf0c2b3a48
+    home: https://openzro.io/
+    icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
+    keywords:
+    - vpn
+    - wireguard
+    - mesh
+    - zero-trust
+    - networking
+    maintainers:
+    - email: dev@openzro.io
+      name: openZro maintainers
+    name: openzro
+    sources:
+    - https://github.com/openzro/openzro
+    - https://github.com/openzro/helms
+    type: application
+    urls:
+    - https://github.com/openzro/helms/releases/download/helm-openzro-v2.1.0-alpha.53/openzro-2.1.0-alpha.53.tgz
+    version: 2.1.0-alpha.53
+  - apiVersion: v2
+    appVersion: 0.53.1-alpha.63
     created: "2026-05-14T01:48:11.013269688Z"
     dependencies:
     - condition: dex.enabled
@@ -1999,4 +2034,4 @@ entries:
     urls:
     - https://github.com/openzro/helms/releases/download/helm-openzro-operator-config-v0.1.0/openzro-operator-config-0.1.0.tgz
     version: 0.1.0
-generated: "2026-05-14T01:48:11.013730931Z"
+generated: "2026-05-14T02:31:41.919027275Z"
