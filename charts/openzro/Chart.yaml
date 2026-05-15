@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.61
+version: 2.1.0-alpha.62
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -28,8 +28,17 @@ version: 2.1.0-alpha.61
 # many vendor API calls); alpha.71 ships cross-replica dedup
 # broadcast for the posture-evaluation recorder, collapsing the
 # N-duplicate-rows-per-state-change behavior the dashboard surfaced
-# in N-replica clusters down to ~1 per change in steady state.
-appVersion: "0.53.1-alpha.72"
+# in N-replica clusters down to ~1 per change in steady state;
+# alpha.74 ships the posture-scheduler follow-ups (single-query
+# account discovery replacing the N+1, auto-discovery of accounts
+# that gain a schedule after boot with subscribe-retry + reconcile
+# debounce, DST transition test coverage) and operator-configurable
+# SentinelOne compliance gates (threat threshold, disk encryption,
+# firewall, console connectivity, min agent version, sync window)
+# behind a baseline-safe default, with the MDM provider config
+# moved to a right-edge sheet. (alpha.73 was an orphan partial tag
+# superseded before any deploy — never chart-bumped.)
+appVersion: "0.53.1-alpha.74"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
