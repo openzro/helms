@@ -32,11 +32,12 @@ jobs:
         run: helm version
 
       - name: Lint Helm Chart
-        # The operator chart lives at charts/openzro-operator/kubernetes-operator/
-        # — `charts/openzro-operator/` itself is just a directory holding both
-        # the CRDs and the actual Chart in a sibling dir.
+        # The operator chart is synced to charts/openzro-operator/ itself
+        # (sync-operator-charts.yml rsyncs upstream helm/openzro-operator/
+        # → charts/openzro-operator/). There is no kubernetes-operator/
+        # subdir — Chart.yaml lives directly under charts/openzro-operator/.
         run: |
-          helm lint ./charts/openzro-operator/kubernetes-operator
+          helm lint ./charts/openzro-operator
 
       - name: Install cert-manager via Helm
         run: |
@@ -52,7 +53,7 @@ jobs:
 
       - name: Install Helm chart for project
         run: |
-          helm install test-chart --create-namespace --namespace openzro --set 'operator.image.tag=debug' ./charts/openzro-operator/kubernetes-operator
+          helm install test-chart --create-namespace --namespace openzro --set 'operator.image.tag=debug' ./charts/openzro-operator
 
       - name: Check Helm release status
         run: |
