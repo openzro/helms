@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.31](https://img.shields.io/badge/Version-2.1.0--alpha.31-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.40](https://img.shields.io/badge/AppVersion-0.53.1--alpha.40-informational?style=flat-square)
+![Version: 2.1.0-alpha.63](https://img.shields.io/badge/Version-2.1.0--alpha.63-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.75](https://img.shields.io/badge/AppVersion-0.53.1--alpha.75-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -322,6 +322,14 @@ The most-tweaked groups during a real install:
 | dashboard.tolerations | list | `[]` |  |
 | dashboard.volumeMounts | list | `[]` |  |
 | dashboard.volumes | list | `[]` |  |
+| dashboards.cluster | string | `""` |  |
+| dashboards.enabled | bool | `false` |  |
+| dashboards.extraAnnotations | object | `{}` |  |
+| dashboards.extraLabels | object | `{}` |  |
+| dashboards.folder | string | `"openZro"` |  |
+| dashboards.folderAnnotation | string | `"grafana_folder"` |  |
+| dashboards.label | string | `"grafana_dashboard"` |  |
+| dashboards.labelValue | string | `"1"` |  |
 | dex.config.connectors | list | `[]` |  |
 | dex.config.enablePasswordDB | bool | `true` |  |
 | dex.config.frontend.dir | string | `"/srv/dex/web"` |  |
@@ -400,6 +408,9 @@ The most-tweaked groups during a real install:
 | gatewayApi.routes.dashboard.enabled | bool | `true` |  |
 | gatewayApi.routes.dashboard.path | string | `"/"` |  |
 | gatewayApi.routes.dashboard.pathType | string | `"PathPrefix"` |  |
+| gatewayApi.routes.dex.enabled | bool | `true` |  |
+| gatewayApi.routes.dex.path | string | `"/dex"` |  |
+| gatewayApi.routes.dex.pathType | string | `"PathPrefix"` |  |
 | gatewayApi.routes.management.enabled | bool | `true` |  |
 | gatewayApi.routes.management.path | string | `"/api"` |  |
 | gatewayApi.routes.management.pathType | string | `"PathPrefix"` |  |
@@ -410,6 +421,7 @@ The most-tweaked groups during a real install:
 | gatewayApi.routes.relay.path | string | `"/"` |  |
 | gatewayApi.routes.relay.pathType | string | `"PathPrefix"` |  |
 | gatewayApi.routes.signal.enabled | bool | `true` |  |
+| gatewayApi.routes.signal.hostname | string | `""` |  |
 | gatewayApi.routes.signal.method | string | `""` |  |
 | gatewayApi.routes.signal.service | string | `""` |  |
 | global.namespace | string | `""` |  |
@@ -436,6 +448,8 @@ The most-tweaked groups during a real install:
 | management.config.deviceAuthorizationFlow.providerConfig.tokenEndpoint | string | `""` |  |
 | management.config.deviceAuthorizationFlow.providerConfig.useIDToken | bool | `false` |  |
 | management.config.disableDefaultPolicy | bool | `false` |  |
+| management.config.flow.proto | string | `"https"` |  |
+| management.config.flow.uri | string | `""` |  |
 | management.config.httpConfig.address | string | `"0.0.0.0:33071"` |  |
 | management.config.httpConfig.authAudience | string | `"openzro-dashboard"` |  |
 | management.config.httpConfig.authIssuer | string | `""` |  |
@@ -478,10 +492,54 @@ The most-tweaked groups during a real install:
 | management.envRaw | list | `[]` |  |
 | management.existingConfigSecret | string | `""` |  |
 | management.extraArgs | list | `[]` |  |
+| management.flowArchiveFormat | string | `"parquet"` |  |
+| management.flowRetention | string | `"720h"` |  |
 | management.geoLite.licenseKey.existingSecret | string | `""` |  |
 | management.geoLite.licenseKey.existingSecretKey | string | `""` |  |
 | management.geoLite.licenseKey.value | string | `""` |  |
 | management.grpcContainerPort | int | `33073` |  |
+| management.grpcProxy.affinity | object | `{}` |  |
+| management.grpcProxy.enabled | bool | `false` |  |
+| management.grpcProxy.image.pullPolicy | string | `"IfNotPresent"` |  |
+| management.grpcProxy.image.repository | string | `"nginx"` |  |
+| management.grpcProxy.image.tag | string | `"1.27-alpine"` |  |
+| management.grpcProxy.imagePullSecrets | list | `[]` |  |
+| management.grpcProxy.nginx.extraHttpConfig | string | `""` |  |
+| management.grpcProxy.nginx.extraServerConfig | string | `""` |  |
+| management.grpcProxy.nginx.grpcReadTimeout | string | `"3600s"` |  |
+| management.grpcProxy.nginx.grpcSendTimeout | string | `"3600s"` |  |
+| management.grpcProxy.nginx.workerConnections | int | `1024` |  |
+| management.grpcProxy.nginx.workerProcesses | string | `"auto"` |  |
+| management.grpcProxy.nodeSelector | object | `{}` |  |
+| management.grpcProxy.pdb.enabled | bool | `true` |  |
+| management.grpcProxy.pdb.minAvailable | int | `1` |  |
+| management.grpcProxy.podAnnotations | object | `{}` |  |
+| management.grpcProxy.podLabels | object | `{}` |  |
+| management.grpcProxy.publicHostname | string | `""` |  |
+| management.grpcProxy.replicas | int | `2` |  |
+| management.grpcProxy.resources.limits.cpu | string | `"500m"` |  |
+| management.grpcProxy.resources.limits.memory | string | `"256Mi"` |  |
+| management.grpcProxy.resources.requests.cpu | string | `"100m"` |  |
+| management.grpcProxy.resources.requests.memory | string | `"64Mi"` |  |
+| management.grpcProxy.service.annotations | object | `{}` |  |
+| management.grpcProxy.service.externalTrafficPolicy | string | `""` |  |
+| management.grpcProxy.service.loadBalancerIP | string | `""` |  |
+| management.grpcProxy.service.port | int | `443` |  |
+| management.grpcProxy.service.type | string | `"LoadBalancer"` |  |
+| management.grpcProxy.tls.certManager.annotations | object | `{}` |  |
+| management.grpcProxy.tls.certManager.dnsNames | list | `[]` |  |
+| management.grpcProxy.tls.certManager.duration | string | `"2160h"` |  |
+| management.grpcProxy.tls.certManager.enabled | bool | `false` |  |
+| management.grpcProxy.tls.certManager.issuerRef.kind | string | `"ClusterIssuer"` |  |
+| management.grpcProxy.tls.certManager.issuerRef.name | string | `""` |  |
+| management.grpcProxy.tls.certManager.privateKey | object | `{}` |  |
+| management.grpcProxy.tls.certManager.renewBefore | string | `"360h"` |  |
+| management.grpcProxy.tls.certManager.secretName | string | `""` |  |
+| management.grpcProxy.tls.existingSecret | string | `""` |  |
+| management.grpcProxy.tls.mountPath | string | `"/etc/nginx/tls"` |  |
+| management.grpcProxy.tls.secretKeys.cert | string | `"tls.crt"` |  |
+| management.grpcProxy.tls.secretKeys.key | string | `"tls.key"` |  |
+| management.grpcProxy.tolerations | list | `[]` |  |
 | management.image.pullPolicy | string | `"IfNotPresent"` |  |
 | management.image.repository | string | `"ghcr.io/openzro/management"` |  |
 | management.image.tag | string | `""` |  |
@@ -523,6 +581,7 @@ The most-tweaked groups during a real install:
 | management.podCommand.args | list | `[]` |  |
 | management.podSecurityContext | object | `{}` |  |
 | management.port | int | `80` |  |
+| management.publicGrpcHostname | string | `""` |  |
 | management.readinessProbe.failureThreshold | int | `3` |  |
 | management.readinessProbe.initialDelaySeconds | int | `15` |  |
 | management.readinessProbe.periodSeconds | int | `10` |  |
@@ -554,6 +613,20 @@ The most-tweaked groups during a real install:
 | management.startupProbe.timeoutSeconds | int | `3` |  |
 | management.strategy.type | string | `"Recreate"` |  |
 | management.terminationGracePeriodSeconds | int | `60` |  |
+| management.tls.certManager.annotations | object | `{}` |  |
+| management.tls.certManager.dnsNames | list | `[]` |  |
+| management.tls.certManager.duration | string | `"2160h"` |  |
+| management.tls.certManager.enabled | bool | `false` |  |
+| management.tls.certManager.issuerRef.kind | string | `"ClusterIssuer"` |  |
+| management.tls.certManager.issuerRef.name | string | `""` |  |
+| management.tls.certManager.privateKey | object | `{}` |  |
+| management.tls.certManager.renewBefore | string | `"360h"` |  |
+| management.tls.certManager.secretName | string | `""` |  |
+| management.tls.enabled | bool | `false` |  |
+| management.tls.existingSecret | string | `""` |  |
+| management.tls.mountPath | string | `"/etc/openzro/tls"` |  |
+| management.tls.secretKeys.cert | string | `"tls.crt"` |  |
+| management.tls.secretKeys.key | string | `"tls.key"` |  |
 | management.tolerations | list | `[]` |  |
 | management.useBackwardsGrpcService | bool | `false` |  |
 | management.volumeMounts | list | `[]` |  |
