@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.63
+version: 2.1.0-alpha.64
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -43,10 +43,22 @@ version: 2.1.0-alpha.63
 # directive with per-peer targeting + R6 critical-only fallback),
 # a generic HTTP webhook traffic-event sink with SSRF guard (#40),
 # and CI-health stabilization (deterministic reds fixed + the
-# Windows/FreeBSD/macOS non-hermetic flakes deflaked). (alpha.73
-# was an orphan partial tag superseded before any deploy — never
-# chart-bumped.)
-appVersion: "0.53.1-alpha.75"
+# Windows/FreeBSD/macOS non-hermetic flakes deflaked); alpha.76
+# fixes the dashboard post-login eternal spinner (Next App Router
+# segment reconciliation broken by the OIDC lib's native
+# history.replaceState — withCustomHistory hard-nav wires it back)
+# alongside an OIDC auth-surface sweep (open-redirect guard on the
+# new redirect path, drop the SPA-incompatible client_secret
+# branch, baseline nginx security headers — HSTS / X-Frame-Options
+# / X-Content-Type-Options / Referrer-Policy / Permissions-Policy,
+# plaintext-URL warning in production, dev OidcTrustedDomains
+# alignment) and tightens the macOS systray icon family to 94%
+# canvas fill so the menu-bar glyph stops rendering half-size; CI
+# infra cleanup (testcontainers via mirror.gcr.io, env preserved
+# through sudo, Docker Hub login removed) closes the rate-limit
+# flake. (alpha.73 was an orphan partial tag superseded before any
+# deploy — never chart-bumped.)
+appVersion: "0.53.1-alpha.76"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
