@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.65
+version: 2.1.0-alpha.66
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -65,10 +65,17 @@ version: 2.1.0-alpha.65
 # Management Unit / Relay locator races (TestCleanupSchedulingBehaviorIsBatched
 # waitgroup ordering, TestLocator_* cluster-dedup convergence)
 # plus swaps the testcontainers hub mirror to mirror.gcr.io after
-# ECR Public's curated catalog missed postgres:16-alpine/redis:7.
+# ECR Public's curated catalog missed postgres:16-alpine/redis:7;
+# alpha.78 reworks the macOS systray family to a solid-shield style
+# (figure/ground inverted — solid shield with the Z as negative
+# space, badges as filled circles with the symbol cut out: X for
+# error, ¾ arc for connecting, solid dot for connected, top-right
+# pip for update) and ships a dedicated error variant SVG (was
+# reusing the disconnected PNG, leaving operators with literally
+# identical pixels for two distinct states at 22pt).
 # (alpha.73 was an orphan partial tag superseded before any
 # deploy — never chart-bumped.)
-appVersion: "0.53.1-alpha.77"
+appVersion: "0.53.1-alpha.78"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
