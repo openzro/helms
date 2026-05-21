@@ -2140,7 +2140,7 @@ dex:
     # values (no `default .Chart.AppVersion` magic), so the parent
     # has to spell the tag here. Update this in lockstep with
     # Chart.yaml::appVersion when bumping the chart.
-    tag: 0.53.1-alpha.77
+    tag: 0.53.1-alpha.78
 
   replicaCount: 1
 

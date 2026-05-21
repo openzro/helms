@@ -1,6 +1,6 @@
 # openzro
 
-![Version: 2.1.0-alpha.65](https://img.shields.io/badge/Version-2.1.0--alpha.65-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.77](https://img.shields.io/badge/AppVersion-0.53.1--alpha.77-informational?style=flat-square)
+![Version: 2.1.0-alpha.66](https://img.shields.io/badge/Version-2.1.0--alpha.66-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.53.1-alpha.78](https://img.shields.io/badge/AppVersion-0.53.1--alpha.78-informational?style=flat-square)
 
 ## openZro Helm Chart
 
@@ -367,7 +367,7 @@ The most-tweaked groups during a real install:
 | dex.grpc.enabled | bool | `true` |  |
 | dex.image.pullPolicy | string | `"IfNotPresent"` |  |
 | dex.image.repository | string | `"ghcr.io/openzro/dex"` |  |
-| dex.image.tag | string | `"0.53.1-alpha.77"` |  |
+| dex.image.tag | string | `"0.53.1-alpha.78"` |  |
 | dex.ingress.annotations | object | `{}` |  |
 | dex.ingress.className | string | `""` |  |
 | dex.ingress.enabled | bool | `false` |  |
