@@ -47,12 +47,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Match any sync/operator-charts-* head, regardless of the
+          # trailing upstream SHA. gh pr list does prefix matching on
+          # --head so the asterisk is implicit, but the upstream alias
+          # we used to pass here ("sync/operator-charts" without a SHA)
+          # was being treated as an exact match by some gh CLI builds
+          # and never found a PR — leaving orphan branches behind on
+          # the next push attempt. Use --search instead, which is
+          # explicit substring matching.
           existing_pr=$(gh pr list \
             --repo "${{ github.repository }}" \
-            --head "sync/operator-charts" \
             --state open \
-            --json number \
-            --jq '.[0].number // empty')
+            --search "head:sync/operator-charts in:title" \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("sync/operator-charts"))][0].number // empty')
 
           if [ -n "$existing_pr" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -112,11 +120,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create branch, commit, and push
+          # Create branch, commit, and push. If a prior run already
+          # created this exact branch (same upstream SHA) but never
+          # opened a PR — happens when `gh pr create` failed after the
+          # push — the second run would fail with non-fast-forward and
+          # the cron job would stay red until someone deletes the
+          # branch by hand. --force-with-lease is safe here because
+          # the branch is single-purpose (this workflow is the only
+          # writer) and resets the branch to the freshly synced tree;
+          # any partial state from the previous run is dropped on
+          # purpose.
           git checkout -b "$BRANCH"
           git add -A charts/openzro-operator/
           git commit -m "sync operator charts from upstream (${{ steps.sync.outputs.upstream_sha }})"
-          git push origin "$BRANCH"
+          git push --force-with-lease origin "$BRANCH"
 
           # Build PR body
           BODY="## Synced Charts from Upstream
@@ -127,12 +144,20 @@ jobs:
           |-------|---------|
           | openzro-operator | ${OPERATOR_VERSION} |"
 
-          # Open PR
-          gh pr create \
+          # Open PR. If a PR is somehow already open against this
+          # exact branch (rare — the check-pr step above usually
+          # catches it), gh pr create exits with "PR already exists";
+          # treat that as success and move on to auto-merge instead
+          # of failing the cron run.
+          if ! gh pr create \
             --title "sync operator charts from upstream" \
             --body "$BODY" \
             --base main \
-            --head "$BRANCH"
+            --head "$BRANCH"; then
+            echo "gh pr create failed — check whether a PR already exists for $BRANCH"
+            gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open || true
+          fi
 
           # Enable auto-merge (requires branch protection with required checks)
-          gh pr merge "$BRANCH" --auto --squash
+          gh pr merge "$BRANCH" --auto --squash || \
+            echo "auto-merge could not be enabled — leave PR open for manual review"
