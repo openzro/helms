@@ -7,7 +7,7 @@ type: application
 # the chart even when the appVersion stays the same. Major reset to
 # 2.0.0 marks the openZro fork point + the Dex subchart introduction
 # (the upstream chart's 1.x line shipped without a bundled IdP).
-version: 2.1.0-alpha.66
+version: 2.1.0-alpha.67
 # Major bump (2.0 → 2.1) marks the HA capability landing: optional
 # StatefulSet workloads for management + signal, NATS subchart for
 # external-broker mode, and the `cluster.mode` switch (disabled |
@@ -72,10 +72,33 @@ version: 2.1.0-alpha.66
 # error, ¾ arc for connecting, solid dot for connected, top-right
 # pip for update) and ships a dedicated error variant SVG (was
 # reusing the disconnected PNG, leaving operators with literally
-# identical pixels for two distinct states at 22pt).
+# identical pixels for two distinct states at 22pt);
+# alpha.79 ships TOTP MFA (#31 — opt-in voluntary enrollment +
+# per-account enforcement toggles, per-session mfa_session_token
+# binding, lockout + backup codes), the SCIM group-membership →
+# peers propagation (#104), and the Google Workspace auth pin
+# (#82); alpha.80 ships Phase 1+2 of Custom DNS Zones (#108 —
+# backend CRUD, agent composition, SearchDomainEnabled flag);
+# alpha.81 ships Phase 4 (operator dashboard UI for DNS Zones) +
+# Linux client UI stability (stable profile menu, systray flicker
+# fix); alpha.82 dashboard polish (sidebar permission gating,
+# Control Center gate, OTP modal padding) + macOS systray icon
+# cache key fix; alpha.83 finishes the MFA gate so MFAEnforceLocal
+# actually triggers on Dex staticPasswords logins (the access
+# token doesn't carry federated_claims — extractor now parses the
+# connector id out of the Dex `sub` protobuf instead) and
+# repaints the last bits of v1 left in the v2 dashboard chrome:
+# restricted-user landing on /peers (now shares SetupModalV2 with
+# the admin Add Peer modal), the Profile Settings entry that was
+# hidden from restricted users (blocking voluntary MFA
+# enrollment), the sidebar Overview shown to restricted users
+# even though /overview was their 404, plus a single-flight on
+# the 403→/mfa/{enroll,challenge} redirect so a fresh login
+# under enforcement stops flickering through cancelled
+# navigations.
 # (alpha.73 was an orphan partial tag superseded before any
 # deploy — never chart-bumped.)
-appVersion: "0.53.1-alpha.78"
+appVersion: "0.53.1-alpha.83"
 icon: https://raw.githubusercontent.com/openzro/openzro/main/brand/openzro-icon.svg
 keywords:
   - vpn
