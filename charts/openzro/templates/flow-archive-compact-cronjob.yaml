@@ -1,0 +1,132 @@
+{{- /*
+   Daily compaction of the flow archive.
+
+   The sinks flush every fifteen minutes, so a low-traffic account
+   produces a few kilobytes of Parquet per file and roughly a hundred
+   files a day. Measured on a live bucket: 3,333 objects across thirty
+   days became 47. Reading a single day used to open ~150 of them, and
+   the round trips -- not the bytes -- were the whole cost.
+
+   Daily, not hourly, and the reason is not taste. Compaction works on
+   whole UTC days and deliberately skips today and yesterday, since the
+   sink is still writing them; a day becomes eligible exactly once. More
+   importantly, the archive is only ever read for windows older than
+   OPENZRO_FLOW_RETENTION -- newer questions are answered from the hot
+   store. A day therefore has that entire retention window to get
+   compacted before anything reads it, which makes daily generous rather
+   than tight.
+
+   Off by default, and dry-run by default when on. This command deletes
+   objects, so enabling it is two deliberate steps: turn the schedule on,
+   watch a few manifests, then set deleteOriginals.
+*/}}
+{{- $c := .Values.management.archiveCompaction | default dict }}
+{{- if and .Values.management.enabled $c.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "openzro.fullname" . }}-archive-compact
+  namespace: {{ include "openzro.namespace" . }}
+  labels:
+    {{- include "openzro.management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: archive-compaction
+spec:
+  schedule: {{ $c.schedule | default "17 4 * * *" | quote }}
+  timeZone: "Etc/UTC"
+  # The window it compacts is a fixed calendar day, so a run that was
+  # missed is not lost work -- the next one picks the same day up, and
+  # the command is idempotent. Never run two at once against the same
+  # bucket.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $c.startingDeadlineSeconds | default 3600 }}
+  successfulJobsHistoryLimit: {{ $c.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ $c.failedJobsHistoryLimit | default 3 }}
+  suspend: {{ $c.suspend | default false }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $c.backoffLimit | default 0 }}
+      template:
+        metadata:
+          labels:
+            {{- include "openzro.management.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: archive-compaction
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "openzro.management.serviceAccountName" . }}
+          {{- with $c.nodeSelector | default .Values.management.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.tolerations | default .Values.management.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: archive-compact
+              image: "{{ .Values.management.image.repository }}:{{ .Values.management.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.management.image.pullPolicy }}
+              {{- /*
+                 The management image's entrypoint starts the server, so
+                 both command and args are replaced. The day is computed
+                 in the container rather than baked in at render time: a
+                 CronJob manifest is rendered once and runs every day.
+              */}}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  DAY=$(date -u -d "{{ $c.lookbackDays | default 2 }} days ago" +%F)
+                  echo "compacting UTC day ${DAY}"
+                  /go/bin/openzro-mgmt flow-archive compact \
+                    --provider {{ required "management.archiveCompaction.provider is required (s3 or gcs)" $c.provider }} \
+                    --bucket {{ required "management.archiveCompaction.bucket is required" $c.bucket | quote }} \
+                    {{- with $c.prefix }}
+                    --prefix {{ . | quote }} \
+                    {{- end }}
+                    {{- with $c.region }}
+                    --region {{ . | quote }} \
+                    {{- end }}
+                    {{- with $c.endpoint }}
+                    --endpoint {{ . | quote }} \
+                    {{- end }}
+                    --concurrency {{ $c.concurrency | default 1 }} \
+                    --from "${DAY}" --to "${DAY}" \
+                    {{- if $c.deleteOriginals }}
+                    --manifest /tmp/manifest.jsonl \
+                    --delete-originals
+                    {{- else }}
+                    --manifest /tmp/manifest.jsonl
+                    {{- end }}
+                  # The manifest is the record of what happened, and the
+                  # pod's disk goes away with it. Emit it so the cluster's
+                  # log pipeline keeps it.
+                  echo "--- manifest ---"
+                  cat /tmp/manifest.jsonl
+              env:
+                {{- range $key, $val := $c.env | default dict }}
+                - name: {{ $key }}
+                  value: {{ $val | quote }}
+                {{- end }}
+                {{- range $key, $val := $c.envFromSecret | default dict }}
+                - name: {{ $key }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ (split "/" $val)._0 }}
+                      key: {{ (split "/" $val)._1 }}
+                {{- end }}
+              resources:
+                {{- toYaml ($c.resources | default dict) | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            # DuckDB spills to disk and the manifest is written here, so
+            # /tmp cannot be the image's read-only layer.
+            - name: tmp
+              emptyDir:
+                sizeLimit: {{ $c.tmpSizeLimit | default "2Gi" }}
+{{- end }}

@@ -108,6 +108,10 @@ spec:
       backendRefs:
         - name: {{ $fullName }}-management
           port: {{ .Values.management.service.port }}
+      {{- with $gw.routes.management.timeouts }}
+      timeouts:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
 
 {{- if and .Values.dex.enabled $gw.routes.dex.enabled }}

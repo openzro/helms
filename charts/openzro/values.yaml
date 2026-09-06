@@ -635,6 +635,72 @@ management:
   ##
   env: {}
 
+  ## Daily compaction of the flow archive, as a CronJob with its own
+  ## resources. Off by default, and dry-run by default when on.
+  ##
+  ## Why it exists: the sinks flush every fifteen minutes, so a day of
+  ## traffic becomes ~150 Parquet objects of a few kilobytes each, and
+  ## reading one day means opening all of them. The round trips, not the
+  ## bytes, are the cost. Measured on a live bucket: 3,333 objects over
+  ## thirty days compact to 47.
+  ##
+  ## Why daily rather than hourly: compaction works on whole UTC days and
+  ## skips today and yesterday while the sink is still writing them, so a
+  ## day becomes eligible exactly once. And the archive is only read for
+  ## windows older than OPENZRO_FLOW_RETENTION -- newer questions are
+  ## answered from the hot store -- so a day has that entire window to be
+  ## compacted before anything reads it.
+  ##
+  ## Enabling deletion is a separate, deliberate step. Leave
+  ## deleteOriginals false, read a few manifests out of the job logs, and
+  ## only then turn it on.
+  archiveCompaction:
+    enabled: false
+    ## Cron schedule, always interpreted in UTC.
+    schedule: "17 4 * * *"
+    ## Which day to compact, counted back from today. 2 is the first day
+    ## the command will accept: it refuses today and yesterday.
+    lookbackDays: 2
+    ## false runs the whole verification and writes nothing. This is the
+    ## default on purpose -- the command deletes objects.
+    deleteOriginals: false
+    suspend: false
+    ## s3 or gcs. Required when enabled: the CronJob does not inherit the
+    ## dashboard-configured archive row, only explicit settings.
+    provider: ""
+    bucket: ""
+    prefix: ""
+    region: ""
+    endpoint: ""
+    ## Days processed at once. Each one opens its own DuckDB, so memory
+    ## multiplies with this number; the limits below are per pod, not per
+    ## day.
+    concurrency: 1
+    ## GCS reads go through DuckDB's httpfs, which authenticates with an
+    ## HMAC interoperability pair and not with service-account JSON.
+    ## Writes and deletes use the pod's ambient credentials. Same
+    ## "secret-name/key" shape as management.envFromSecret.
+    envFromSecret: {}
+    env: {}
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    ## DuckDB spills here and the manifest is written here.
+    tmpSizeLimit: 2Gi
+    startingDeadlineSeconds: 3600
+    ## Zero retries: a failed compaction leaves the originals intact by
+    ## design, and a blind retry is less useful than a human reading the
+    ## manifest.
+    backoffLimit: 0
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    nodeSelector: {}
+    tolerations: []
+
   ## @param management.envRaw Raw environment variables for the management pod.
   ##
   envRaw: []
@@ -2477,6 +2543,17 @@ gatewayApi:
       enabled: true
       path: /api
       pathType: PathPrefix
+      # Envoy applies a 15s route timeout when none is set, which is
+      # generous for the REST API and far too short for a flow-archive
+      # query: those read Parquet out of object storage and take tens of
+      # seconds until the archive is compacted. Left empty the chart
+      # keeps Envoy's default; set it and the value must stay LARGER
+      # than management's OPENZRO_FLOW_ARCHIVE_QUERY_TIMEOUT, so the
+      # application refuses with a controlled error before the gateway
+      # cuts the connection with a 504 nobody can attribute.
+      timeouts: {}
+      #  request: 300s
+      #  backendRequest: 300s
     managementGrpc:
       enabled: true
       # gRPC routes match by Service+Method or Service prefix.
