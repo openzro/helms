@@ -22,6 +22,35 @@
 */}}
 {{- $c := .Values.management.archiveCompaction | default dict }}
 {{- if and .Values.management.enabled $c.enabled }}
+{{- /*
+   Whether this Job has to read the dashboard's archive at all.
+
+   It does not when the values or the environment already name a
+   provider and a bucket -- the command short-circuits there and touches
+   neither the management config nor the database. Everything below hangs
+   off this: the database wiring, the config Secret, and whether SQLite
+   is a problem.
+*/}}
+{{- $env := $c.env | default dict }}
+{{- $envSecrets := $c.envFromSecret | default dict }}
+{{- $envBucket := or (get $env "OPENZRO_FLOW_ARCHIVE_GCS_BUCKET") (get $env "OPENZRO_FLOW_ARCHIVE_S3_BUCKET") }}
+{{- $envSecretBucket := or (get $envSecrets "OPENZRO_FLOW_ARCHIVE_GCS_BUCKET") (get $envSecrets "OPENZRO_FLOW_ARCHIVE_S3_BUCKET") }}
+{{- $explicit := or (and $c.provider $c.bucket) $envBucket $envSecretBucket }}
+{{- /*
+   Reading the dashboard's archive means opening the management store,
+   and on the embedded SQLite store that is a file under Datadir -- a PVC
+   the Deployment mounts and this Job cannot, since most storage classes
+   refuse a second attach. Postgres and MySQL reach the same data over
+   the network, which is why they work and SQLite does not.
+
+   Empty means neither Postgres nor MySQL: the helper names only those
+   two, and absence is the SQLite fallback. Worth stating because the
+   first version of this guard compared against "sqlite" and never fired.
+*/}}
+{{- $engine := include "openzro.store.engine" . }}
+{{- if and (not $engine) (not $explicit) }}
+{{- fail "management.archiveCompaction: with no postgres or mysql enabled the management store is SQLite -- a file on a volume only the management pod can mount, so this Job cannot read the archive configured in the dashboard. Name the archive explicitly instead: set management.archiveCompaction.provider and .bucket, or an OPENZRO_FLOW_ARCHIVE_*_BUCKET in .env, plus the credential in .envFromSecret. Or enable postgres/mysql." }}
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -78,8 +107,19 @@ spec:
                   DAY=$(date -u -d "{{ $c.lookbackDays | default 2 }} days ago" +%F)
                   echo "compacting UTC day ${DAY}"
                   /go/bin/openzro-mgmt flow-archive compact \
-                    --provider {{ required "management.archiveCompaction.provider is required (s3 or gcs)" $c.provider }} \
-                    --bucket {{ required "management.archiveCompaction.bucket is required" $c.bucket | quote }} \
+                    {{- /*
+                       No --provider or --bucket by default. The command
+                       reads the archive configured in the dashboard under
+                       Integrations, which is where this deployment's
+                       bucket and credential already live. Set these only
+                       to point a run somewhere else.
+                    */}}
+                    {{- with $c.provider }}
+                    --provider {{ . }} \
+                    {{- end }}
+                    {{- with $c.bucket }}
+                    --bucket {{ . | quote }} \
+                    {{- end }}
                     {{- with $c.prefix }}
                     --prefix {{ . | quote }} \
                     {{- end }}
@@ -103,6 +143,16 @@ spec:
                   echo "--- manifest ---"
                   cat /tmp/manifest.jsonl
               env:
+                {{- /*
+                   Reading the dashboard's row needs the same two things
+                   the server needs: the database, and the key its
+                   credentials are encrypted with. autoWiredEnv carries
+                   the store connection; the key lives in the config file
+                   mounted below.
+                */}}
+                {{- if not $explicit }}
+                {{- include "openzro.management.autoWiredEnv" . | nindent 16 }}
+                {{- end }}
                 {{- range $key, $val := $c.env | default dict }}
                 - name: {{ $key }}
                   value: {{ $val | quote }}
@@ -123,10 +173,30 @@ spec:
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
+                {{- /*
+                   The management config, for DataStoreEncryptionKey.
+                   Same Secret the server mounts, read-only.
+                */}}
+                {{- if not $explicit }}
+                - name: config
+                  mountPath: /etc/openzro
+                  readOnly: true
+                {{- end }}
           volumes:
             # DuckDB spills to disk and the manifest is written here, so
             # /tmp cannot be the image's read-only layer.
             - name: tmp
               emptyDir:
                 sizeLimit: {{ $c.tmpSizeLimit | default "2Gi" }}
+            {{- if not $explicit }}
+            # The same Secret the management Deployment mounts, so the
+            # Job reads the identical DataStoreEncryptionKey rather than a
+            # copy that can fall out of step with it. Mounted only when
+            # the archive has to be read from the database: a Job that was
+            # told where the bucket is has no business holding the key
+            # every integration credential is encrypted with.
+            - name: config
+              secret:
+                secretName: {{ .Values.management.existingConfigSecret | default (printf "%s-management" (include "openzro.fullname" .)) }}
+            {{- end }}
 {{- end }}

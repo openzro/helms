@@ -665,8 +665,26 @@ management:
     ## default on purpose -- the command deletes objects.
     deleteOriginals: false
     suspend: false
-    ## s3 or gcs. Required when enabled: the CronJob does not inherit the
-    ## dashboard-configured archive row, only explicit settings.
+    ## Naming the archive here, or through an OPENZRO_FLOW_ARCHIVE_*_BUCKET
+    ## in .env / .envFromSecret, changes what the Job gets: the command
+    ## short-circuits before touching the management config or the
+    ## database, so the chart leaves both out. A Job that was told where
+    ## the bucket is has no business holding the key every integration
+    ## credential is encrypted with.
+    ##
+    ## Leaving it empty means the archive is read from the dashboard, and
+    ## that needs the management store reachable over the network -- so
+    ## postgres or mysql. On the embedded SQLite store that data is a file
+    ## on a volume only the management pod can mount, and the chart
+    ## refuses to render rather than failing at 04:17 with a path that was
+    ## never mounted.
+    ##
+    ## Usually left empty. The command reads the archive configured in
+    ## the dashboard under Integrations -- the same row the management
+    ## server reads, decrypted with the same key -- so it compacts the
+    ## bucket the sink is writing to, with the credential already stored
+    ## there. Set these only to point a run at a different bucket, such
+    ## as a copy taken before a destructive run. Flags win over the row.
     provider: ""
     bucket: ""
     prefix: ""
@@ -676,10 +694,38 @@ management:
     ## multiplies with this number; the limits below are per pod, not per
     ## day.
     concurrency: 1
-    ## GCS reads go through DuckDB's httpfs, which authenticates with an
-    ## HMAC interoperability pair and not with service-account JSON.
-    ## Writes and deletes use the pod's ambient credentials. Same
-    ## "secret-name/key" shape as management.envFromSecret.
+    ## GCS authenticates twice for the same bucket, and which halves you
+    ## must supply here depends on where the archive is named.
+    ##
+    ##   reads          DuckDB, through httpfs -> HMAC interoperability
+    ##                  pair. It rejects service-account JSON, and no
+    ##                  dashboard row carries it, so this is ALWAYS
+    ##                  needed for GCS.
+    ##   writes/deletes the cloud SDK -> service-account JSON or file.
+    ##
+    ## Reading the archive from the dashboard: only the HMAC pair goes
+    ## here. The service account comes with the row.
+    ##
+    ##   envFromSecret:
+    ##     OPENZRO_FLOW_ARCHIVE_GCS_HMAC_KEY_ID: openzro-gcs-hmac/keyId
+    ##     OPENZRO_FLOW_ARCHIVE_GCS_HMAC_SECRET: openzro-gcs-hmac/secret
+    ##
+    ## Naming the archive explicitly, by provider/bucket above or by an
+    ## OPENZRO_FLOW_ARCHIVE_*_BUCKET below: the row is never read, so
+    ## BOTH have to be here. This is the only option on a SQLite store.
+    ## Omitting the service account is the quiet failure -- the SDK falls
+    ## back to whatever ambient identity the node has, which is usually
+    ## read-only, and the job fails on its first write with a permission
+    ## error naming a credential nobody configured.
+    ##
+    ##   envFromSecret:
+    ##     OPENZRO_FLOW_ARCHIVE_GCS_HMAC_KEY_ID:      openzro-gcs-hmac/keyId
+    ##     OPENZRO_FLOW_ARCHIVE_GCS_HMAC_SECRET:      openzro-gcs-hmac/secret
+    ##     OPENZRO_FLOW_ARCHIVE_GCS_CREDENTIALS_JSON: openzro-gcs-sa/json
+    ##
+    ## S3 needs none of this split either way: one key pair signs both
+    ## halves, from the row or from
+    ## OPENZRO_FLOW_ARCHIVE_S3_ACCESS_KEY / _SECRET_KEY.
     envFromSecret: {}
     env: {}
     resources:
