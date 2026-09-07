@@ -1,0 +1,146 @@
+name: Sync openzro Chart Version
+
+# Keeps charts/openzro pointing at the current openZro release.
+#
+# Without this the chart drifts silently: it sat on appVersion
+# 0.53.1-alpha.83 for three and a half months and fifteen releases, so
+# anyone installing it got software from May. Nobody noticed because
+# nothing announces a chart falling behind.
+#
+# Same shape as sync-operator-charts.yml: scheduled, opens a PR, tries to
+# auto-merge. A PR nobody merges is a visible sign the chart is stale,
+# which a silent push would not be.
+#
+# It only moves versions. Template changes are still authored by hand,
+# because they need review.
+
+on:
+  schedule:
+    # Offset from sync-operator-charts (:00) so the two do not contend.
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the current release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # NOT releases/latest: every openZro release is a prerelease,
+          # and that endpoint ignores prereleases -- it answers 404 here.
+          # The list is newest-first.
+          TAG=$(gh api "repos/openzro/openzro/releases?per_page=1" -q '.[0].tag_name')
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::could not read the newest release of openzro/openzro"
+            exit 1
+          fi
+          APP="${TAG#v}"
+
+          LOCAL=$(grep -E '^appVersion:' charts/openzro/Chart.yaml | awk '{print $2}' | tr -d '"')
+          echo "upstream=$APP  local=$LOCAL"
+
+          if [ "$APP" = "$LOCAL" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "app=$APP" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump the chart
+        if: steps.check.outputs.changed == 'true'
+        id: bump
+        run: |
+          set -euo pipefail
+          APP="${{ steps.check.outputs.app }}"
+
+          # The chart's own version moves too: consumers pin it, and a
+          # chart whose contents changed while its version stayed put is
+          # not reinstallable.
+          CUR=$(grep -E '^version:' charts/openzro/Chart.yaml | awk '{print $2}' | tr -d '"')
+          case "$CUR" in
+            *-alpha.*) NEXT="${CUR%.*}.$(( ${CUR##*.} + 1 ))" ;;
+            *)
+              echo "::error::chart version $CUR is not the X.Y.Z-alpha.N shape this bump understands"
+              exit 1
+              ;;
+          esac
+
+          # Fail loudly rather than sync nothing. A silent no-op here
+          # would leave the chart stale while the job stayed green, which
+          # is the failure this workflow exists to prevent.
+          grep -qE '^appVersion:' charts/openzro/Chart.yaml || { echo "::error::no appVersion in Chart.yaml"; exit 1; }
+          grep -qE '^\s+tag: [0-9]' charts/openzro/values.yaml || { echo "::error::no pinned image tag in values.yaml"; exit 1; }
+
+          sed -i -E "s|^appVersion:.*|appVersion: \"${APP}\"|" charts/openzro/Chart.yaml
+          sed -i -E "s|^version:.*|version: ${NEXT}|" charts/openzro/Chart.yaml
+          sed -i -E "s|^(\s+)tag: [0-9][^[:space:]]*|\1tag: ${APP}|" charts/openzro/values.yaml
+
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          git diff --stat
+
+      - name: Regenerate READMEs
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          # Same version the Verify Helm chart docs job pins, so what is
+          # committed here is byte-identical to what that job regenerates.
+          # Skipping this is how a values change lands red -- it has
+          # happened, by hand, twice.
+          VERSION="1.14.2"
+          curl -sSL "https://github.com/norwoodj/helm-docs/releases/download/v${VERSION}/helm-docs_${VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /tmp helm-docs
+          sudo mv /tmp/helm-docs /usr/local/bin/helm-docs
+          helm-docs --chart-search-root charts
+
+      - name: Open the PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          # Same fallback as sync-operator-charts: without a PAT the
+          # GITHUB_TOKEN opens the PR but does not trigger the status
+          # checks, which is worse than nothing but better than no PR.
+          GH_TOKEN: ${{ secrets.CHART_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APP="${{ steps.check.outputs.app }}"
+          BRANCH="sync/openzro-chart-${APP}"
+
+          if git diff --quiet; then
+            echo "versions differ but no file changed — nothing to open a PR for"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # --force-with-lease for the same reason the operator sync uses
+          # it: a previous run may have pushed this exact branch and then
+          # failed to open the PR, and without it every later run stays
+          # red until someone deletes the branch by hand. This workflow
+          # is the only writer of these branches.
+          git checkout -b "$BRANCH"
+          git add -A charts/openzro/
+          git commit -m "chore(charts/openzro): track openZro ${APP}"
+          git push --force-with-lease origin "$BRANCH"
+
+          if ! gh pr create \
+            --title "chore(charts/openzro): track openZro ${APP}" \
+            --body "$(printf 'Follows the release of [%s](https://github.com/openzro/openzro/releases/tag/v%s).\n\n| | |\n| --- | --- |\n| appVersion | `%s` |\n| chart version | `%s` |\n| image tag | `%s` |\n\nVersions only. Template changes are still authored by hand.\n\nThe READMEs were regenerated with helm-docs 1.14.2, the version `Verify Helm chart docs` pins, so this lands green rather than needing a follow-up.\n' "$APP" "$APP" "$APP" "${{ steps.bump.outputs.next }}" "$APP")" \
+            --base main \
+            --head "$BRANCH"; then
+            echo "gh pr create failed — checking whether one is already open"
+            gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open || true
+          fi
+
+          gh pr merge "$BRANCH" --auto --squash || \
+            echo "auto-merge unavailable — the PR stays open for review"
