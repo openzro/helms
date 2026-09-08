@@ -25,6 +25,50 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Whether CHART_SYNC_TOKEN is actually usable, answerable on demand
+  # instead of on the next release.
+  #
+  # The token only matters in the step that opens the PR, and that step
+  # only runs when the chart is behind -- so a correctly-configured token
+  # and a missing one look identical until a release lands. The symptom
+  # when it is missing is not an error either: the run goes green, the PR
+  # is opened by github-actions[bot], and its checks sit in
+  # action_required forever because a PR from GITHUB_TOKEN does not
+  # trigger workflows.
+  #
+  # Manual only. It prints an identity and two booleans, never the token.
+  verify-token:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check the sync token
+        env:
+          GH_TOKEN: ${{ secrets.CHART_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::CHART_SYNC_TOKEN is not set — sync PRs will be opened by github-actions[bot] and their checks will need manual approval"
+            exit 0
+          fi
+
+          WHO=$(gh api user -q .login 2>/dev/null || echo "")
+          if [ -z "$WHO" ]; then
+            echo "::error::CHART_SYNC_TOKEN is set but does not authenticate — expired, revoked, or malformed"
+            exit 1
+          fi
+          echo "authenticates as: $WHO"
+
+          # Opening a PR needs push access to this repository. A token
+          # that reads but cannot write fails at the push, after the
+          # branch work is done, which is a confusing place to find out.
+          PUSH=$(gh api "repos/${{ github.repository }}" -q .permissions.push 2>/dev/null || echo "false")
+          echo "can push to ${{ github.repository }}: $PUSH"
+          if [ "$PUSH" != "true" ]; then
+            echo "::error::the token authenticates but cannot push here — sync PRs will fail at git push"
+            exit 1
+          fi
+          echo "CHART_SYNC_TOKEN is usable for opening sync PRs"
+
   sync:
     runs-on: ubuntu-22.04
     steps:
