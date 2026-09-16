@@ -207,6 +207,19 @@ jobs:
             echo "gh pr create failed — checking whether one is already open"
             EXISTING=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number -q '.[0].number' || true)
             if [ -z "$EXISTING" ]; then
+              # gh pr create goes through GraphQL. Try the REST endpoint
+              # before concluding the token lacks the permission: a
+              # fine-grained PAT that can create a PR over REST but is
+              # refused over GraphQL points at the API, not the token.
+              echo "retrying over REST"
+              EXISTING=$(gh api -X POST "repos/${{ github.repository }}/pulls" \
+                -f title="chore(charts/openzro): track openZro ${APP}" \
+                -f head="$BRANCH" -f base=main \
+                -f body="Follows the release of v${APP}. Versions only; READMEs regenerated with helm-docs." \
+                -q .number 2>&1 || true)
+              case "$EXISTING" in ''|*[!0-9]*) echo "REST also failed: $EXISTING"; EXISTING="";; esac
+            fi
+            if [ -z "$EXISTING" ]; then
               # Pushing the branch and then failing here used to exit 0,
               # so a token that can push but cannot open pull requests
               # produced a green run and an orphan branch. Seen on
