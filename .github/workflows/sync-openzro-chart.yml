@@ -61,6 +61,12 @@ jobs:
           # Opening a PR needs push access to this repository. A token
           # that reads but cannot write fails at the push, after the
           # branch work is done, which is a confusing place to find out.
+          #
+          # What this cannot probe: whether the token may CREATE pull
+          # requests. For a fine-grained PAT that is a separate permission
+          # ('Pull requests: Read and write') with no side-effect-free
+          # test. The sync step now fails loudly there instead of
+          # reporting success, so the first real release is the probe.
           PUSH=$(gh api "repos/${{ github.repository }}" -q .permissions.push 2>/dev/null || echo "false")
           echo "can push to ${{ github.repository }}: $PUSH"
           if [ "$PUSH" != "true" ]; then
@@ -183,7 +189,17 @@ jobs:
             --base main \
             --head "$BRANCH"; then
             echo "gh pr create failed — checking whether one is already open"
-            gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open || true
+            EXISTING=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number -q '.[0].number' || true)
+            if [ -z "$EXISTING" ]; then
+              # Pushing the branch and then failing here used to exit 0,
+              # so a token that can push but cannot open pull requests
+              # produced a green run and an orphan branch. Seen on
+              # 0.53.1-alpha.98: "Resource not accessible by personal
+              # access token (createPullRequest)".
+              echo "::error::branch $BRANCH was pushed but no pull request exists for it. The token can push but cannot create pull requests -- a fine-grained PAT needs 'Pull requests: Read and write' on this repository. Open the PR by hand from the branch, then fix the token."
+              exit 1
+            fi
+            echo "pull request #$EXISTING for $BRANCH is already open"
           fi
 
           gh pr merge "$BRANCH" --auto --squash || \
