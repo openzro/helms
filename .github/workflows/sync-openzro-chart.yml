@@ -69,6 +69,22 @@ jobs:
           # reporting success, so the first real release is the probe.
           PUSH=$(gh api "repos/${{ github.repository }}" -q .permissions.push 2>/dev/null || echo "false")
           echo "can push to ${{ github.repository }}: $PUSH"
+
+          # pull_requests:write is a separate permission on a fine-grained
+          # PAT. Probe it with a REST no-op: PATCH the most recent pull
+          # request's title to its current value. A token without the
+          # permission gets 403 here; one with it changes nothing.
+          PR=$(gh api "repos/${{ github.repository }}/pulls?state=all&per_page=1" -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$PR" ] && [ "$PR" != "null" ]; then
+            TITLE=$(gh api "repos/${{ github.repository }}/pulls/$PR" -q .title)
+            if gh api -X PATCH "repos/${{ github.repository }}/pulls/$PR" -f title="$TITLE" >/dev/null 2>&1; then
+              echo "can write pull requests (REST): true"
+            else
+              echo "can write pull requests (REST): false"
+              echo "::error::the token cannot write pull requests -- add 'Pull requests: Read and write' to the fine-grained PAT, and check the org has not left the change pending approval"
+              exit 1
+            fi
+          fi
           if [ "$PUSH" != "true" ]; then
             echo "::error::the token authenticates but cannot push here — sync PRs will fail at git push"
             exit 1
